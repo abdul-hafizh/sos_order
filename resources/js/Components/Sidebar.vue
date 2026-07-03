@@ -23,14 +23,13 @@ const openGroups = ref(['Master']);
 const menuItems = [
     { name: 'Dashboard', route: 'dashboard', icon: ChartPieIcon, type: 'single' },
 
-    { name: 'Pemesanan', route: 'pemesanan.index', icon: ClipboardDocumentListIcon, type: 'single' },
+    { name: 'Barang', route: 'barang.index', icon: ClipboardDocumentListIcon, type: 'single' },
 
     {
         name: 'Master',
         type: 'group',
         icon: BuildingOffice2Icon,
         children: [
-            { name: 'Barang', route: 'barang.index' },
             { name: 'Divisi', route: 'divisi.index' },
             { name: 'Users', route: 'users.index' },
             { name: 'Vendor', route: 'vendor.index' },

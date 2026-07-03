@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Barang;
 use App\Models\BarangDetail;
 use App\Models\BarangGambar;
+use App\Models\Keranjang;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -45,10 +46,23 @@ class BarangController extends Controller
             ->paginate(12)
             ->withQueryString();
 
+        $keranjang = Keranjang::with(['details.barang.details.gambars'])
+            ->where('user_id', auth()->id())
+            ->where('status', 'draft')
+            ->first();
+
+        $cartItems = $keranjang?->details ?? collect();
+
         return Inertia::render('Dashboard', [
             'barangs' => $barangs,
-            'filters' => $request->only(['search']),
-            'image_keyword' => null,
+            'filters' => $request->only('search'),
+            'image_keyword' => $imageKeyword ?? null,
+            'keranjang' => [
+                'id_keranjang' => $keranjang?->id_keranjang,
+                'items' => $cartItems,
+                'total_item' => $cartItems->sum('qty'),
+                'total_baris' => $cartItems->count(),
+            ],
         ]);
     }
 

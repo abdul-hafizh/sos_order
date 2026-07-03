@@ -2,6 +2,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router, useForm, Link } from '@inertiajs/vue3';
 import { ref, watch, computed } from 'vue';
+import { Input } from '@/Components/ui/input';
+import { Button } from '@/Components/ui/button';
 import {
     Search,
     ImagePlus,
@@ -9,20 +11,70 @@ import {
     Layers,
     UploadCloud,
     X,
+    ShoppingCart,
+    Plus,
 } from 'lucide-vue-next';
-import { Input } from '@/Components/ui/input';
-import { Button } from '@/Components/ui/button';
 
 const props = defineProps({
     barangs: Object,
     filters: Object,
     image_keyword: String,
+    keranjang: Object,
 });
 
 const previewImage = ref(null);
 
 const hasResult = computed(() => props.barangs?.data?.length > 0);
 const hasSearch = computed(() => params.value.search || props.image_keyword);
+const cartItems = computed(() => props.keranjang?.items || []);
+const totalCartQty = computed(() => props.keranjang?.total_baris || 0);
+const showCart = ref(false);
+
+const addCartForm = useForm({
+    id_barang: null,
+    qty: 1,
+});
+
+const barangBaruForm = useForm({
+    nama_barang: '',
+    qty: 1,
+    satuan: '',
+    catatan: '',
+    gambar: null,
+});
+
+const addToCart = (barang) => {
+    addCartForm.id_barang = barang.id_barang;
+    addCartForm.qty = 1;
+
+    addCartForm.post(route('keranjang.storeBarang'), {
+        preserveScroll: true,
+    });
+};
+
+const addBarangBaruToCart = () => {
+    barangBaruForm.nama_barang = props.image_keyword || params.value.search || 'Barang baru';
+    barangBaruForm.gambar = imageForm.image;
+
+    barangBaruForm.post(route('keranjang.storeBarangBaru'), {
+        forceFormData: true,
+        preserveScroll: true,
+    });
+};
+
+const getCartImage = (item) => {
+    if (item.gambar_permintaan) {
+        return `/storage/${item.gambar_permintaan}`;
+    }
+
+    const images = item.barang?.details?.flatMap((detail) => detail.gambars || []) || [];
+
+    if (images.length && images[0].path_file) {
+        return `/storage/${images[0].path_file}`;
+    }
+
+    return null;
+};
 
 const resetSearch = () => {
     previewImage.value = null;
@@ -32,6 +84,22 @@ const resetSearch = () => {
     router.get(route('dashboard'), {}, {
         preserveState: false,
         replace: true,
+    });
+};
+
+const updateCartQty = (item, qty) => {
+    if (qty < 1) return;
+
+    router.put(route('keranjang.updateQty', item.id_keranjang_detail), {
+        qty,
+    }, {
+        preserveScroll: true,
+    });
+};
+
+const removeCartItem = (item) => {
+    router.delete(route('keranjang.destroy', item.id_keranjang_detail), {
+        preserveScroll: true,
     });
 };
 
@@ -101,6 +169,21 @@ const clearImage = () => {
         </template>
 
         <div class="py-7 px-6 w-full">
+            <button
+                type="button"
+                class="fixed bottom-6 right-6 z-40 bg-blue-700 text-white rounded-full shadow-xl p-4 hover:bg-blue-800"
+                @click="showCart = true"
+            >
+                <ShoppingCart class="w-6 h-6" />
+
+                <span
+                    v-if="totalCartQty > 0"
+                    class="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full min-w-6 h-6 flex items-center justify-center px-1"
+                >
+                    {{ totalCartQty }}
+                </span>
+            </button>
+
             <div class="rounded-3xl bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 text-white p-8 shadow-xl mb-7">
                 <div class="max-w-3xl">
                     <div class="inline-flex items-center gap-2 bg-white/15 px-4 py-2 rounded-full text-sm mb-4">
@@ -215,15 +298,16 @@ const clearImage = () => {
                     </p>
                 </div>
 
-                <Button
-                    v-if="hasSearch"
-                    type="button"
-                    variant="outline"
-                    class="rounded-2xl"
-                    @click="resetSearch"
-                >
-                    Reset
-                </Button>
+                <div class="flex flex-col md:flex-row gap-3 justify-center mt-5">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        class="rounded-2xl"
+                        @click="resetSearch"
+                    >
+                        Reset
+                    </Button>
+                </div>
             </div>
 
             <div
@@ -286,13 +370,25 @@ const clearImage = () => {
                                 +{{ barang.details.length - 3 }}
                             </span>
                         </div>
+
+                        <Button
+                            type="button"
+                            class="w-full mt-5 bg-blue-700 text-white rounded-2xl"
+                            @click="addToCart(barang)"
+                        >
+                            <ShoppingCart class="w-4 h-4 mr-2" />
+                            Masukkan Keranjang
+                        </Button>
                     </div>
                 </div>
             </div>
 
             <div v-else class="bg-white rounded-3xl border border-red-100 shadow-sm p-12 text-center">
                 <Package class="w-16 h-16 mx-auto text-red-300 mb-4" />
-                <h3 class="font-bold text-red-700">Barang tidak ditemukan</h3>
+
+                <h3 class="font-bold text-red-700">
+                    Barang tidak ditemukan
+                </h3>
 
                 <p class="text-sm text-gray-500 mt-2">
                     Barang yang Anda cari tidak tersedia di database.
@@ -303,13 +399,30 @@ const clearImage = () => {
                     <span class="font-semibold">{{ image_keyword }}</span>
                 </p>
 
-                <Button
-                    type="button"
-                    class="mt-5 bg-blue-700 text-white rounded-2xl"
-                    @click="resetSearch"
-                >
-                    Reset
-                </Button>
+                <p class="text-sm text-blue-600 mt-3">
+                    Anda tetap dapat membuat permintaan barang baru. Gambar yang diupload akan disimpan sebagai referensi untuk admin.
+                </p>
+
+                <div class="flex flex-col md:flex-row justify-center gap-3 mt-6">
+                    <Button
+                        type="button"
+                        class="bg-blue-700 text-white rounded-2xl"
+                        @click="addBarangBaruToCart"
+                        :disabled="barangBaruForm.processing"
+                    >
+                        <Plus class="w-4 h-4 mr-2" />
+                        {{ barangBaruForm.processing ? 'Memasukkan...' : 'Masukkan sebagai Barang Baru' }}
+                    </Button>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        class="rounded-2xl"
+                        @click="resetSearch"
+                    >
+                        Reset
+                    </Button>
+                </div>
             </div>
 
             <div v-if="barangs?.links?.length" class="mt-8 flex flex-wrap gap-2 justify-center">
@@ -327,5 +440,117 @@ const clearImage = () => {
                 </Link>
             </div>
         </div>
+
+        <div
+            v-if="showCart"
+            class="fixed inset-0 z-50 bg-black/50 flex justify-end"
+        >
+            <div class="bg-white w-full max-w-md h-full shadow-2xl flex flex-col">
+                <div class="p-5 border-b flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-900">Keranjang</h3>
+                        <p class="text-sm text-gray-400">
+                            {{ totalCartQty }} item kebutuhan
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="p-2 rounded-full hover:bg-gray-100"
+                        @click="showCart = false"
+                    >
+                        <X class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                    <div
+                        v-if="!cartItems.length"
+                        class="text-center py-12 text-gray-400"
+                    >
+                        <ShoppingCart class="w-12 h-12 mx-auto mb-3" />
+                        <p class="text-sm">Keranjang masih kosong.</p>
+                    </div>
+
+                    <div
+                        v-for="item in cartItems"
+                        :key="item.id_keranjang_detail"
+                        class="border rounded-2xl p-4"
+                    >
+                        <div class="flex gap-3">
+                            <div class="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center">
+                                <img
+                                    v-if="getCartImage(item)"
+                                    :src="getCartImage(item)"
+                                    class="w-full h-full object-cover"
+                                />
+
+                                <Package v-else class="w-7 h-7 text-gray-400" />
+                            </div>
+
+                            <div class="flex-1">
+                                <h4 class="font-semibold text-sm text-gray-900">
+                                    {{ item.nama_barang }}
+                                </h4>
+
+                                <p class="text-xs mt-1"
+                                :class="item.tipe_item === 'barang_baru' ? 'text-orange-600' : 'text-blue-600'">
+                                    {{ item.tipe_item === 'barang_baru' ? 'Permintaan barang baru' : 'Barang tersedia' }}
+                                </p>
+
+                                <div class="flex items-center gap-2 mt-3">
+                                    <button
+                                        type="button"
+                                        class="w-8 h-8 rounded-lg border"
+                                        @click="updateCartQty(item, Number(item.qty) - 1)"
+                                    >
+                                        -
+                                    </button>
+
+                                    <Input
+                                        :model-value="item.qty"
+                                        type="number"
+                                        min="1"
+                                        class="w-16 h-8 text-center"
+                                        @change="updateCartQty(item, Number($event.target.value))"
+                                    />
+
+                                    <button
+                                        type="button"
+                                        class="w-8 h-8 rounded-lg border"
+                                        @click="updateCartQty(item, Number(item.qty) + 1)"
+                                    >
+                                        +
+                                    </button>
+
+                                    <span class="text-xs text-gray-400">
+                                        {{ item.satuan }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="text-red-500"
+                                @click="removeCartItem(item)"
+                            >
+                                <X class="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-5 border-t">
+                    <Button
+                        type="button"
+                        class="w-full bg-blue-700 text-white rounded-2xl h-12"
+                        :disabled="!cartItems.length"
+                    >
+                        Pesan Sekarang
+                    </Button>
+                </div>
+            </div>
+        </div>
+
     </AuthenticatedLayout>
 </template>

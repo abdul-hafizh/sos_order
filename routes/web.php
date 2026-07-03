@@ -6,7 +6,7 @@ use App\Http\Controllers\ProdukController;
 use App\Http\Controllers\DivisiController; 
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\BarangController;
-use App\Http\Controllers\PemesananController;
+use App\Http\Controllers\KeranjangController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -20,11 +20,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     Route::get('/dashboard', [BarangController::class, 'dashboard'])->name('dashboard');
     Route::post('/dashboard/search-image', [BarangController::class, 'searchByImage'])->name('dashboard.search-image');
-
-    Route::get('/pemesanan', [PemesananController::class, 'index'])->name('pemesanan.index');
+    
+    Route::post('/keranjang/barang', [KeranjangController::class, 'storeBarang'])
+        ->name('keranjang.storeBarang');
+    Route::post('/keranjang/barang-baru', [KeranjangController::class, 'storeBarangBaru'])
+        ->name('keranjang.storeBarangBaru');
+    Route::put('/keranjang/{id}/qty', [KeranjangController::class, 'updateQty'])
+        ->name('keranjang.updateQty');
+    Route::delete('/keranjang/{id}', [KeranjangController::class, 'destroy'])
+        ->name('keranjang.destroy');
 
     Route::get('/procure', fn () => Inertia::render('Procure'))->name('procure');
-
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
