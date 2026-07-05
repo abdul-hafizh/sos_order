@@ -69,13 +69,14 @@ class KeranjangController extends Controller
             'satuan' => 'nullable|string|max:50',
             'catatan' => 'nullable|string',
             'gambar' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'image_path' => 'nullable|string',
         ]);
 
         $keranjang = $this->getDraftKeranjang();
 
-        $gambarPath = null;
+        $gambarPath = $request->input('image_path');
 
-        if ($request->hasFile('gambar')) {
+        if (!$gambarPath && $request->hasFile('gambar')) {
             $gambarPath = $request->file('gambar')->store('permintaan-barang', 'public');
         }
 

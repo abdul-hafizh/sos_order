@@ -55,10 +55,21 @@ const addToCart = (barang) => {
 };
 
 const addBarangBaruToCart = () => {
-    barangBaruForm.nama_barang = props.image_keyword || params.value.search || 'Barang baru';
-    barangBaruForm.image_path = props.image_path || '';
+    const urlParams = new URLSearchParams(window.location.search);
+
+    barangBaruForm.nama_barang =
+        props.image_keyword ||
+        urlParams.get('image_keyword') ||
+        params.value.search ||
+        'Barang baru';
+
+    barangBaruForm.image_path =
+        props.image_path ||
+        urlParams.get('image_path') ||
+        '';
 
     barangBaruForm.post(route('keranjang.storeBarangBaru'), {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             showCart.value = true;
@@ -121,6 +132,8 @@ const searchByImage = () => {
 
 const params = ref({
     search: props.filters?.search || '',
+    image_keyword: props.image_keyword || '',
+    image_path: props.image_path || '',
 });
 
 watch(params, (newParams) => {
