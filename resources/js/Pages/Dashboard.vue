@@ -19,6 +19,7 @@ const props = defineProps({
     barangs: Object,
     filters: Object,
     image_keyword: String,
+    image_path: String,
     keranjang: Object,
 });
 
@@ -41,6 +42,7 @@ const barangBaruForm = useForm({
     satuan: '',
     catatan: '',
     gambar: null,
+    image_path: '',
 });
 
 const addToCart = (barang) => {
@@ -54,17 +56,21 @@ const addToCart = (barang) => {
 
 const addBarangBaruToCart = () => {
     barangBaruForm.nama_barang = props.image_keyword || params.value.search || 'Barang baru';
-    barangBaruForm.gambar = imageForm.image;
+    barangBaruForm.image_path = props.image_path || '';
 
     barangBaruForm.post(route('keranjang.storeBarangBaru'), {
-        forceFormData: true,
         preserveScroll: true,
+        onSuccess: () => {
+            showCart.value = true;
+        },
     });
 };
 
 const getCartImage = (item) => {
     if (item.gambar_permintaan) {
-        return `/storage/${item.gambar_permintaan}`;
+        return item.gambar_permintaan.startsWith('http')
+            ? item.gambar_permintaan
+            : `/storage/${item.gambar_permintaan}`;
     }
 
     const images = item.barang?.details?.flatMap((detail) => detail.gambars || []) || [];
@@ -288,6 +294,31 @@ const clearImage = () => {
             >
                 Keyword dari gambar:
                 <span class="font-semibold">{{ image_keyword }}</span>
+            </div>
+
+            <div
+                v-if="image_keyword"
+                class="mb-6 bg-white border border-indigo-100 rounded-3xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+            >
+                <div>
+                    <h3 class="font-bold text-gray-900">
+                        Barang yang dicari tidak ada?
+                    </h3>
+
+                    <p class="text-sm text-gray-500">
+                        Anda tetap bisa memasukkan hasil foto ke keranjang sebagai
+                        <b>permintaan barang baru</b>.
+                    </p>
+                </div>
+
+                <Button
+                    type="button"
+                    class="bg-indigo-700 text-white rounded-2xl"
+                    @click="addBarangBaruToCart"
+                >
+                    <Plus class="w-4 h-4 mr-2" />
+                    Masukkan Keranjang Hasil Foto
+                </Button>
             </div>
 
             <div class="flex items-center justify-between mb-5">

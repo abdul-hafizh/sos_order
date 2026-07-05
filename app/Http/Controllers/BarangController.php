@@ -36,10 +36,20 @@ class BarangController extends Controller
     public function dashboard(Request $request)
     {
         $barangs = Barang::with(['details.gambars'])
-            ->when($request->search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('nama_barang', 'like', "%{$search}%")
-                        ->orWhere('kode_barang', 'like', "%{$search}%");
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $keywords = preg_split('/[\s,]+/', $request->search);
+
+                $query->where(function ($q) use ($keywords) {
+                    foreach ($keywords as $keyword) {
+                        $keyword = trim($keyword);
+
+                        if ($keyword === '') {
+                            continue;
+                        }
+
+                        $q->orWhere('nama_barang', 'like', "%{$keyword}%")
+                        ->orWhere('kode_barang', 'like', "%{$keyword}%");
+                    }
                 });
             })
             ->orderByDesc('id_barang')
@@ -56,7 +66,8 @@ class BarangController extends Controller
         return Inertia::render('Dashboard', [
             'barangs' => $barangs,
             'filters' => $request->only('search'),
-            'image_keyword' => $imageKeyword ?? null,
+            'image_keyword' => $request->input('image_keyword'),
+            'image_path' => $request->input('image_path'),
             'keranjang' => [
                 'id_keranjang' => $keranjang?->id_keranjang,
                 'items' => $cartItems,
@@ -73,6 +84,13 @@ class BarangController extends Controller
         ]);
 
         $file = $request->file('image');
+
+        $imagePath = $file->store('permintaan-barang', 'public');
+
+        session([
+            'last_image_path' => $imagePath,
+        ]);
+
         $base64 = base64_encode(file_get_contents($file->getRealPath()));
         $mime = $file->getMimeType();
 
@@ -98,27 +116,37 @@ class BarangController extends Controller
             ]);
 
         $jsonText = $response->json('output.0.content.0.text') ?? '{}';
+
         $result = json_decode($jsonText, true);
 
         $keywords = $result['keywords'] ?? [];
 
-        $barangs = Barang::with(['details.gambars'])
-            ->where(function ($query) use ($keywords) {
-                foreach ($keywords as $keyword) {
-                    $query->orWhere('nama_barang', 'like', "%{$keyword}%")
-                        ->orWhere('kode_barang', 'like', "%{$keyword}%");
-                }
-            })
-            ->orderByDesc('id_barang')
-            ->paginate(12)
-            ->withQueryString();
+        $keywordText = collect($keywords)
+            ->filter()
+            ->map(fn ($item) => trim($item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->implode(' ');
 
-        return Inertia::render('Dashboard', [
-            'barangs' => $barangs,
-            'filters' => [
-                'search' => '',
-            ],
-            'image_keyword' => implode(', ', $keywords),
+        $imageKeywordText = collect($keywords)
+            ->filter()
+            ->map(fn ($item) => trim($item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->implode(', ');
+
+        if (!$keywordText) {
+            return redirect()
+                ->route('dashboard')
+                ->with('error', 'Keyword dari gambar tidak berhasil dibaca.');
+        }
+
+        return redirect()->route('dashboard', [
+            'search' => $keywordText,
+            'image_keyword' => $imageKeywordText,
+            'image_path' => $imagePath,
         ]);
     }
 
@@ -202,6 +230,41 @@ class BarangController extends Controller
         });
 
         return back()->with('message', 'Barang berhasil ditambahkan');
+    }
+
+    public function storeBarangBaru(Request $request)
+    {
+        $request->validate([
+            'nama_barang' => ['required', 'string', 'max:255'],
+            'qty' => ['required', 'numeric', 'min:1'],
+            'satuan' => ['nullable', 'string', 'max:50'],
+            'catatan' => ['nullable', 'string'],
+            'gambar' => ['nullable', 'image', 'max:4096'],
+            'image_path' => ['nullable', 'string'],
+        ]);
+
+        $gambarPath = $request->image_path ?: session('last_image_path');
+
+        if (!$gambarPath && $request->hasFile('gambar')) {
+            $gambarPath = $request->file('gambar')->store('permintaan-barang', 'public');
+        }
+
+        $keranjang = Keranjang::firstOrCreate([
+            'user_id' => auth()->id(),
+            'status' => 'draft',
+        ]);
+
+        $keranjang->items()->create([
+            'id_barang' => null,
+            'nama_barang' => $request->nama_barang,
+            'qty' => $request->qty,
+            'satuan' => $request->satuan,
+            'catatan' => $request->catatan,
+            'gambar_permintaan' => $gambarPath,
+            'tipe_item' => 'barang_baru',
+        ]);
+
+        return back()->with('success', 'Permintaan barang baru berhasil dimasukkan ke keranjang.');
     }
 
     public function update(Request $request, $id)
