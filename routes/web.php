@@ -7,6 +7,7 @@ use App\Http\Controllers\DivisiController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\BarangController;
 use App\Http\Controllers\KeranjangController;
+use App\Http\Controllers\SpkController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -33,6 +34,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('keranjang.updateNamaBarangBaru');
     Route::post('/keranjang/pesan-sekarang', [KeranjangController::class, 'pesanSekarang'])
         ->name('keranjang.pesanSekarang');
+
+    Route::get('/spk', [SpkController::class, 'index'])->name('spk.index');
+    Route::get('/spk/{id}', [SpkController::class, 'show'])->name('spk.show');
+    Route::put('/spk/{id}/validasi', [SpkController::class, 'updateValidasi'])->name('spk.updateValidasi');
+    Route::put('/spk/{id}/kirim', [SpkController::class, 'updateKirim'])->name('spk.updateKirim');
+    Route::put('/spk/{id}/terima', [SpkController::class, 'updateTerima'])->name('spk.updateTerima');
+    Route::post('/spk/{id}/buat-master-barang', [SpkController::class, 'buatMasterBarang'])->name('spk.buatMasterBarang');
 
     Route::get('/procure', fn () => Inertia::render('Procure'))->name('procure');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

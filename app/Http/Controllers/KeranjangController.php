@@ -168,6 +168,8 @@ class KeranjangController extends Controller
 
                     'kode_barang' => $item->barang?->kode_barang,
                     'nama_barang' => $item->nama_barang,
+                    'id_barang' => $item->id_barang,
+                    'gambar_permintaan' => $item->gambar_permintaan,
                     'qty_last' => 0,
                     'qty_cabang_terima' => 0,
                     'qty' => $item->qty,

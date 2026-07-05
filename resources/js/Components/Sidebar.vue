@@ -23,6 +23,8 @@ const openGroups = ref(['Master']);
 const menuItems = [
     { name: 'Dashboard', route: 'dashboard', icon: ChartPieIcon, type: 'single' },
 
+    { name: 'SPK', route: 'spk.index', icon: ShoppingBagIcon, type: 'single' },
+
     { name: 'Barang', route: 'barang.index', icon: ClipboardDocumentListIcon, type: 'single' },
 
     {

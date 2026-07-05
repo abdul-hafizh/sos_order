@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Barang;
 use Illuminate\Database\Eloquent\Model;
 
 class Spk extends Model
@@ -36,5 +37,12 @@ class Spk extends Model
         'keterangan',
         'modified_by',
         'modified_date',
+        'gambar_permintaan',
+        'id_barang'
     ];
+
+    public function barang()
+    {
+        return $this->belongsTo(Barang::class, 'id_barang', 'id_barang');
+    }
 }
