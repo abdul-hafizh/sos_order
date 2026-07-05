@@ -25,6 +25,10 @@ const props = defineProps({
 
 const previewImage = ref(null);
 
+const imageForm = useForm({
+    image: null,
+});
+
 const hasResult = computed(() => props.barangs?.data?.length > 0);
 const hasSearch = computed(() => params.value.search || props.image_keyword);
 const cartItems = computed(() => props.keranjang?.items || []);
@@ -35,6 +39,20 @@ const addCartForm = useForm({
     id_barang: null,
     qty: 1,
 });
+
+const updateNamaBarangBaru = (item, namaBarang) => {
+    if (item.tipe_item !== 'barang_baru') return;
+
+    const nama = namaBarang.trim();
+
+    if (!nama || nama === item.nama_barang) return;
+
+    router.put(route('keranjang.updateNamaBarangBaru', item.id_keranjang_detail), {
+        nama_barang: nama,
+    }, {
+        preserveScroll: true,
+    });
+};
 
 const barangBaruForm = useForm({
     nama_barang: '',
@@ -121,12 +139,21 @@ const removeCartItem = (item) => {
 };
 
 const searchByImage = () => {
-    if (!imageForm.image) return;
+    if (!imageForm.image) {
+        alert('Pilih gambar dulu.');
+        return;
+    }
 
-    imageForm.post(route('dashboard.search-image'), {
+    const formData = new FormData();
+    formData.append('image', imageForm.image);
+
+    router.post(route('dashboard.search-image'), formData, {
         forceFormData: true,
         preserveScroll: true,
         preserveState: false,
+        onError: (errors) => {
+            alert(errors.image || 'Gagal upload gambar');
+        },
     });
 };
 
@@ -143,10 +170,6 @@ watch(params, (newParams) => {
         replace: true,
     });
 }, { deep: true });
-
-const imageForm = useForm({
-    image: null,
-});
 
 const rupiah = (value) => {
     return new Intl.NumberFormat('id-ID', {
@@ -174,6 +197,20 @@ const clearImage = () => {
     imageForm.image = null;
     previewImage.value = null;
 };
+
+const pesanSekarang = () => {
+    if (!confirm('Apakah kamu yakin ingin menyimpan pesanan ini ke SPK?')) {
+        return;
+    }
+
+    router.post(route('keranjang.pesanSekarang'), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showCart.value = false;
+        },
+    });
+};
+
 </script>
 
 <template>
@@ -268,6 +305,7 @@ const clearImage = () => {
                         <span class="text-xs text-gray-400 mt-1">JPG, PNG, WEBP</span>
 
                         <input
+                            name="image"
                             type="file"
                             accept="image/*"
                             class="hidden"
@@ -533,7 +571,14 @@ const clearImage = () => {
                             </div>
 
                             <div class="flex-1">
-                                <h4 class="font-semibold text-sm text-gray-900">
+                                <Input
+                                    v-if="item.tipe_item === 'barang_baru'"
+                                    :model-value="item.nama_barang"
+                                    class="h-9 text-sm font-semibold"
+                                    @change="updateNamaBarangBaru(item, $event.target.value)"
+                                />
+
+                                <h4 v-else class="font-semibold text-sm text-gray-900">
                                     {{ item.nama_barang }}
                                 </h4>
 
@@ -589,6 +634,7 @@ const clearImage = () => {
                         type="button"
                         class="w-full bg-blue-700 text-white rounded-2xl h-12"
                         :disabled="!cartItems.length"
+                        @click="pesanSekarang"
                     >
                         Pesan Sekarang
                     </Button>

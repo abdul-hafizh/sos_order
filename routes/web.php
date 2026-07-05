@@ -29,6 +29,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('keranjang.updateQty');
     Route::delete('/keranjang/{id}', [KeranjangController::class, 'destroy'])
         ->name('keranjang.destroy');
+    Route::put('/keranjang/{id}/update-nama-barang-baru', [KeranjangController::class, 'updateNamaBarangBaru'])
+        ->name('keranjang.updateNamaBarangBaru');
+    Route::post('/keranjang/pesan-sekarang', [KeranjangController::class, 'pesanSekarang'])
+        ->name('keranjang.pesanSekarang');
 
     Route::get('/procure', fn () => Inertia::render('Procure'))->name('procure');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class BarangController extends Controller
@@ -79,11 +80,11 @@ class BarangController extends Controller
 
     public function searchByImage(Request $request)
     {
-        $request->validate([
-            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:4096',
-        ]);
-
         $file = $request->file('image');
+
+        $request->validate([
+            'image' => 'required|file|mimetypes:image/jpeg,image/png,image/webp|max:10240',
+        ]);
 
         $imagePath = $file->store('permintaan-barang', 'public');
 
@@ -239,7 +240,7 @@ class BarangController extends Controller
             'qty' => ['required', 'numeric', 'min:1'],
             'satuan' => ['nullable', 'string', 'max:50'],
             'catatan' => ['nullable', 'string'],
-            'gambar' => ['nullable', 'image', 'max:4096'],
+            'gambar' => ['nullable', 'image', 'max:10240'],
             'image_path' => ['nullable', 'string'],
         ]);
 
