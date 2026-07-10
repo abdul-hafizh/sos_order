@@ -17,7 +17,6 @@ class KeranjangDetail extends Model
         'qty',
         'satuan',
         'tipe_item',
-        'gambar_permintaan',
         'catatan',
     ];
 
@@ -43,6 +42,15 @@ class KeranjangDetail extends Model
             Barang::class,
             'id_barang',
             'id_barang'
+        );
+    }
+
+    public function gambar()
+    {
+        return $this->hasMany(
+            KeranjangDetailGambar::class,
+            'id_keranjang_detail',
+            'id_keranjang_detail'
         );
     }
 }

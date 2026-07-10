@@ -3,7 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProdukController;
-use App\Http\Controllers\DivisiController; 
+use App\Http\Controllers\DivisiController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\BarangController;
 use App\Http\Controllers\KeranjangController;
@@ -18,10 +18,10 @@ Route::get('/', function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    
+
     Route::get('/dashboard', [BarangController::class, 'dashboard'])->name('dashboard');
     Route::post('/dashboard/search-image', [BarangController::class, 'searchByImage'])->name('dashboard.search-image');
-    
+
     Route::post('/keranjang/barang', [KeranjangController::class, 'storeBarang'])
         ->name('keranjang.storeBarang');
     Route::post('/keranjang/barang-baru', [KeranjangController::class, 'storeBarangBaru'])
@@ -34,6 +34,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('keranjang.updateNamaBarangBaru');
     Route::post('/keranjang/pesan-sekarang', [KeranjangController::class, 'pesanSekarang'])
         ->name('keranjang.pesanSekarang');
+    Route::post(
+        '/keranjang/{id}/gambar',
+        [KeranjangController::class, 'uploadGambar']
+    )->name('keranjang.uploadGambar');
 
     Route::get('/spk', [SpkController::class, 'index'])->name('spk.index');
     Route::get('/spk/{id}', [SpkController::class, 'show'])->name('spk.show');
@@ -42,7 +46,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/spk/{id}/terima', [SpkController::class, 'updateTerima'])->name('spk.updateTerima');
     Route::post('/spk/{id}/buat-master-barang', [SpkController::class, 'buatMasterBarang'])->name('spk.buatMasterBarang');
 
-    Route::get('/procure', fn () => Inertia::render('Procure'))->name('procure');
+    Route::get('/procure', fn() => Inertia::render('Procure'))->name('procure');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
@@ -52,10 +56,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('divisi', DivisiController::class);
     Route::resource('vendor', VendorController::class);
     Route::resource('barang', BarangController::class);
-    
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
