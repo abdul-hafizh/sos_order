@@ -49,7 +49,7 @@ class BarangController extends Controller
                         }
 
                         $q->orWhere('nama_barang', 'like', "%{$keyword}%")
-                        ->orWhere('kode_barang', 'like', "%{$keyword}%");
+                            ->orWhere('kode_barang', 'like', "%{$keyword}%");
                     }
                 });
             })
@@ -57,7 +57,10 @@ class BarangController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        $keranjang = Keranjang::with(['details.barang.details.gambars'])
+        $keranjang = Keranjang::with([
+            'details.gambar',
+            'details.barang.details.gambars',
+        ])
             ->where('user_id', auth()->id())
             ->where('status', 'draft')
             ->first();
@@ -124,7 +127,7 @@ class BarangController extends Controller
 
         $keywordText = collect($keywords)
             ->filter()
-            ->map(fn ($item) => trim($item))
+            ->map(fn($item) => trim($item))
             ->filter()
             ->unique()
             ->values()
@@ -132,7 +135,7 @@ class BarangController extends Controller
 
         $imageKeywordText = collect($keywords)
             ->filter()
-            ->map(fn ($item) => trim($item))
+            ->map(fn($item) => trim($item))
             ->filter()
             ->unique()
             ->values()

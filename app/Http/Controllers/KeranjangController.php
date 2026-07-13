@@ -53,7 +53,6 @@ class KeranjangController extends Controller
                 'qty' => $validated['qty'],
                 'satuan' => $barang->satuan,
                 'tipe_item' => 'barang_tersedia',
-                'gambar_permintaan' => null,
                 'catatan' => $validated['catatan'] ?? null,
             ]);
         }
@@ -65,37 +64,46 @@ class KeranjangController extends Controller
 
     public function storeBarangBaru(Request $request)
     {
-        $validated = $request->validate([
-            'nama_barang' => 'required|string|max:255',
-            'qty' => 'required|integer|min:1',
-            'satuan' => 'nullable|string|max:50',
-            'catatan' => 'nullable|string',
-            'gambar' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'image_path' => 'nullable|string',
+        $request->validate([
+            'nama_barang' => ['required', 'string', 'max:255'],
+            'qty' => ['required', 'numeric', 'min:1'],
+            'satuan' => ['nullable', 'string', 'max:50'],
+            'catatan' => ['nullable', 'string'],
+            'gambar' => ['nullable', 'image', 'max:10240'],
+            'image_path' => ['nullable', 'string'],
         ]);
 
-        $keranjang = $this->getDraftKeranjang();
-
-        $gambarPath = $request->input('image_path');
+        // Tentukan path gambar (dari input file atau session hasil searchByImage)
+        $gambarPath = $request->image_path ?: session('last_image_path');
 
         if (!$gambarPath && $request->hasFile('gambar')) {
             $gambarPath = $request->file('gambar')->store('permintaan-barang', 'public');
         }
 
-        KeranjangDetail::create([
-            'id_keranjang' => $keranjang->id_keranjang,
-            'id_barang' => null,
-            'nama_barang' => $validated['nama_barang'],
-            'qty' => $validated['qty'],
-            'satuan' => $validated['satuan'] ?? null,
-            'tipe_item' => 'barang_baru',
-            'gambar_permintaan' => $gambarPath,
-            'catatan' => $validated['catatan'] ?? null,
+        $keranjang = Keranjang::firstOrCreate([
+            'user_id' => auth()->id(),
+            'status' => 'draft',
         ]);
 
-        return redirect()
-            ->route('dashboard')
-            ->with('success', 'Permintaan barang baru berhasil dimasukkan ke keranjang.');
+        // 1. Simpan detail TANPA kolom gambar_permintaan
+        $detail = $keranjang->items()->create([
+            'id_barang' => null,
+            'nama_barang' => $request->nama_barang,
+            'qty' => $request->qty,
+            'satuan' => $request->satuan,
+            'catatan' => $request->catatan,
+            'tipe_item' => 'barang_baru',
+        ]);
+
+        // 2. Simpan path gambar ke tabel relasi KeranjangDetailGambar
+        if ($gambarPath) {
+            \App\Models\KeranjangDetailGambar::create([
+                'id_keranjang_detail' => $detail->id_keranjang_detail,
+                'gambar' => $gambarPath,
+            ]);
+        }
+
+        return back()->with('success', 'Permintaan barang baru berhasil dimasukkan ke keranjang.');
     }
 
     public function updateNamaBarangBaru(Request $request, $id)
@@ -145,7 +153,7 @@ class KeranjangController extends Controller
     {
         $keranjang = $this->getDraftKeranjang();
 
-        $items = KeranjangDetail::with('barang')
+        $items = KeranjangDetail::with(['barang', 'gambar'])
             ->where('id_keranjang', $keranjang->id_keranjang)
             ->get();
 
@@ -163,13 +171,11 @@ class KeranjangController extends Controller
                     'period' => now()->format('Y-m-d'),
                     'po_ke' => 1,
 
-                    // sesuaikan kalau field cabang user Anda beda
                     'kode_cabang' => $user->kode_cabang ?? null,
 
                     'kode_barang' => $item->barang?->kode_barang,
                     'nama_barang' => $item->nama_barang,
                     'id_barang' => $item->id_barang,
-                    'gambar_permintaan' => $item->gambar_permintaan,
                     'qty_last' => 0,
                     'qty_cabang_terima' => 0,
                     'qty' => $item->qty,
@@ -225,5 +231,34 @@ class KeranjangController extends Controller
         return redirect()
             ->route('dashboard')
             ->with('success', 'Item berhasil dihapus dari keranjang.');
+    }
+
+    public function uploadGambar(Request $request, $id)
+    {
+        $request->validate([
+            'gambar' => 'required|array',
+            'gambar.*' => 'image|max:2048',
+        ]);
+
+        $detail = KeranjangDetail::findOrFail($id);
+
+        foreach ($request->file('gambar') as $file) {
+            $path = $file->store('permintaan-barang', 'public');
+
+            \App\Models\KeranjangDetailGambar::create([
+                'id_keranjang_detail' => $detail->id_keranjang_detail,
+                'gambar' => $path,
+            ]);
+        }
+
+        $keranjangId = $detail->id_keranjang;
+
+        $keranjang = Keranjang::with(['items.gambar'])->find($keranjangId);
+
+        return redirect()->back()->with('success', 'Gambar berhasil diunggah.', $keranjang);
+    }
+    public function gambar()
+    {
+        return $this->hasMany(KeranjangDetailGambar::class, 'id_keranjang_detail', 'id_keranjang_detail');
     }
 }
