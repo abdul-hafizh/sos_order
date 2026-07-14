@@ -166,17 +166,18 @@ const addBarangBaruToCart = () => {
 };
 
 const getCartImage = (item) => {
-    console.log("Data Item:", item);
-
-    if (item.gambar?.length) {
-        return `/storage/${item.gambar[0].gambar}`;
+    // Jika tipe item adalah barang tersedia, langsung ambil dari master barang (t_barang_gambar)
+    if (item.tipe_item !== "barang_baru") {
+        const masterImages = item.barang?.details?.flatMap((detail) => detail.gambars || []) || [];
+        if (masterImages.length) {
+            return `/storage/${masterImages[0].path_file}`;
+        }
+        return null;
     }
 
-    const images =
-        item.barang?.details?.flatMap((detail) => detail.gambars || []) || [];
-
-    if (images.length) {
-        return `/storage/${images[0].path_file}`;
+    // Jika barang baru, ambil dari gambar yang diupload ke keranjang detail
+    if (item.gambar?.length) {
+        return `/storage/${item.gambar[0].gambar}`;
     }
 
     return null;
@@ -718,54 +719,62 @@ const pesanSekarang = () => {
                         class="border rounded-2xl p-4"
                     >
                         <div class="flex gap-3">
-                            <div
-                                class="relative w-16 h-16 cursor-pointer"
-                                @click="openUpload(item)"
-                            >
-                                <template v-if="item.gambar?.length">
-                                    <img
-                                        v-for="(
-                                            img, index
-                                        ) in item.gambar.slice(0, 3)"
-                                        :key="img.id_gambar"
-                                        :src="`/storage/${img.gambar}`"
-                                        class="absolute w-14 h-14 object-cover rounded-xl border-2 border-white shadow-lg transition-all duration-200 hover:z-50"
-                                        :style="{
-                                            left: `${index * 6}px`,
-                                            top: `${index * 4}px`,
-                                            zIndex: index + 1,
-                                            transform: `rotate(${(index - 1) * 4}deg)`,
-                                        }"
-                                        @click.stop="openPreview(item, index)"
-                                    />
+                            
+                            <div>
+                                <div
+                                    v-if="item.tipe_item === 'barang_baru'"
+                                    class="relative w-16 h-16 cursor-pointer"
+                                    @click="openUpload(item)"
+                                >
+                                    <template v-if="item.gambar?.length">
+                                        <img
+                                            v-for="(img, index) in item.gambar.slice(0, 3)"
+                                            :key="img.id_gambar"
+                                            :src="`/storage/${img.gambar}`"
+                                            class="absolute w-14 h-14 object-cover rounded-xl border-2 border-white shadow-lg transition-all duration-200 hover:z-50"
+                                            :style="{
+                                                left: `${index * 6}px`,
+                                                top: `${index * 4}px`,
+                                                zIndex: index + 1,
+                                                transform: `rotate(${(index - 1) * 4}deg)`,
+                                            }"
+                                            @click.stop="openPreview(item, index)"
+                                        />
+
+                                        <div
+                                            v-if="item.gambar.length > 3"
+                                            class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center border-2 border-white shadow"
+                                        >
+                                            +{{ item.gambar.length - 3 }}
+                                        </div>
+                                    </template>
 
                                     <div
-                                        v-if="item.gambar.length > 3"
-                                        class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center border-2 border-white shadow"
+                                        v-else
+                                        class="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center border"
                                     >
-                                        +{{ item.gambar.length - 3 }}
+                                        <ImagePlus class="w-6 h-6 text-gray-400" />
                                     </div>
-                                </template>
+                                </div>
 
                                 <div
                                     v-else
-                                    class="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center"
+                                    class="w-16 h-16 rounded-xl overflow-hidden border bg-gray-50 flex items-center justify-center pointer-events-none"
                                 >
-                                    <ImagePlus class="w-6 h-6 text-gray-400" />
+                                    <img
+                                        v-if="getCartImage(item)"
+                                        :src="getCartImage(item)"
+                                        class="w-full h-full object-cover"
+                                    />
+                                    <Package v-else class="w-6 h-6 text-gray-400" />
                                 </div>
                             </div>
-
                             <div class="flex-1">
                                 <Input
                                     v-if="item.tipe_item === 'barang_baru'"
                                     :model-value="item.nama_barang"
                                     class="h-9 text-sm font-semibold"
-                                    @change="
-                                        updateNamaBarangBaru(
-                                            item,
-                                            $event.target.value,
-                                        )
-                                    "
+                                    @change="updateNamaBarangBaru(item, $event.target.value)"
                                 />
 
                                 <h4
@@ -777,29 +786,16 @@ const pesanSekarang = () => {
 
                                 <p
                                     class="text-xs mt-1"
-                                    :class="
-                                        item.tipe_item === 'barang_baru'
-                                            ? 'text-orange-600'
-                                            : 'text-blue-600'
-                                    "
+                                    :class="item.tipe_item === 'barang_baru' ? 'text-orange-600' : 'text-blue-600'"
                                 >
-                                    {{
-                                        item.tipe_item === "barang_baru"
-                                            ? "Permintaan barang baru"
-                                            : "Barang tersedia"
-                                    }}
+                                    {{ item.tipe_item === "barang_baru" ? "Permintaan barang baru" : "Barang tersedia" }}
                                 </p>
 
                                 <div class="flex items-center gap-2 mt-3">
                                     <button
                                         type="button"
                                         class="w-8 h-8 rounded-lg border"
-                                        @click="
-                                            updateCartQty(
-                                                item,
-                                                Number(item.qty) - 1,
-                                            )
-                                        "
+                                        @click="updateCartQty(item, Number(item.qty) - 1)"
                                     >
                                         -
                                     </button>
@@ -809,23 +805,13 @@ const pesanSekarang = () => {
                                         type="number"
                                         min="1"
                                         class="w-16 h-8 text-center"
-                                        @change="
-                                            updateCartQty(
-                                                item,
-                                                Number($event.target.value),
-                                            )
-                                        "
+                                        @change="updateCartQty(item, Number($event.target.value))"
                                     />
 
                                     <button
                                         type="button"
                                         class="w-8 h-8 rounded-lg border"
-                                        @click="
-                                            updateCartQty(
-                                                item,
-                                                Number(item.qty) + 1,
-                                            )
-                                        "
+                                        @click="updateCartQty(item, Number(item.qty) + 1)"
                                     >
                                         +
                                     </button>
@@ -838,7 +824,7 @@ const pesanSekarang = () => {
 
                             <button
                                 type="button"
-                                class="text-red-500"
+                                class="text-red-500 self-start mt-1"
                                 @click="removeCartItem(item)"
                             >
                                 <X class="w-5 h-5" />

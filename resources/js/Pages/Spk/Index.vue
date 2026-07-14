@@ -38,8 +38,11 @@ const masterForm = ref({
 const openMasterBarang = (spk) => {
     masterSpk.value = spk;
 
+    const randomNumbers = Math.floor(1000000 + Math.random() * 9000000);
+    const otomatisKodeBarang = `R${randomNumbers}`;
+
     masterForm.value = {
-        kode_barang: '',
+        kode_barang: otomatisKodeBarang,
         nama_barang: spk.nama_barang || '',
         harga_beli: spk.harga_beli || 0,
         harga_jual: spk.harga_jual || 0,
@@ -189,6 +192,21 @@ const getSpkImages = (spk) => {
         .map((img) => `/storage/${img.path_file}`);
 };
 
+const toggleKetersediaan = (spk) => {
+    const nextStatus = Number(spk.is_available) === 1 ? 0 : 1;
+    const statusLabel = nextStatus === 1 ? 'Tersedia' : 'Tidak Tersedia';
+
+    if (!confirm(`Apakah Anda yakin ingin menandai barang ini sebagai "${statusLabel}"?`)) {
+        return;
+    }
+
+    router.put(route('spk.updateKetersediaan', spk.id_po), {
+        is_available: nextStatus,
+    }, {
+        preserveScroll: true,
+    });
+};
+
 const updateTerima = (spk) => {
     const nextStatus = Number(spk.status_terima_barang) === 1 ? 0 : 1;
 
@@ -204,6 +222,22 @@ const updateTerima = (spk) => {
         status_terima_barang: nextStatus,
         qty_cabang_terima: nextStatus === 1 ? spk.qty : spk.qty_cabang_terima,
         keterangan: spk.keterangan,
+    }, {
+        preserveScroll: true,
+    });
+};
+
+const changeKetersediaan = (spk, statusBaru) => {
+    let label = 'Menunggu Verifikasi';
+    if (statusBaru === 1) label = 'Tersedia';
+    if (statusBaru === 2) label = 'Tidak Tersedia';
+
+    if (!confirm(`Ubah status ketersediaan barang menjadi "${label}"?`)) {
+        return;
+    }
+
+    router.put(route('spk.updateKetersediaan', spk.id_po), {
+        is_available: statusBaru,
     }, {
         preserveScroll: true,
     });
@@ -329,116 +363,140 @@ const submitMasterBarang = () => {
                 <div
                     v-for="spk in rows"
                     :key="spk.id_po"
-                    class="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition p-5"
+                    class="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition p-5 flex flex-col justify-between"
                 >
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <div class="flex flex-wrap items-center gap-2 mb-2">
-                                <span class="text-xs font-semibold bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
-                                    PO #{{ spk.id_po }}
-                                </span>
+                    <div>
+                        <div class="flex items-start justify-between gap-4 mb-4">
+                            <div class="w-16 h-16 rounded-2xl overflow-hidden border bg-gray-50 flex items-center justify-center shrink-0 shadow-sm">
+                                <img
+                                    v-if="getSpkImages(spk).length"
+                                    :src="getSpkImages(spk)[0]"
+                                    class="w-full h-full object-cover"
+                                    alt="Gambar Produk"
+                                />
+                                <Package v-else class="w-6 h-6 text-gray-400" />
+                            </div>
 
-                                <span
-                                    v-if="isBarangBaru(spk)"
-                                    class="text-xs font-semibold bg-orange-100 text-orange-700 px-3 py-1 rounded-full"
+                            <div class="flex-1 min-w-0">
+                                <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                                    <span class="text-[10px] font-semibold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full">
+                                        PO #{{ spk.id_po }}
+                                    </span>
+
+                                    <span
+                                        v-if="isBarangBaru(spk)"
+                                        class="text-[10px] font-semibold bg-orange-100 text-orange-700 px-2.5 py-0.5 rounded-full"
+                                    >
+                                        Barang Baru
+                                    </span>
+                                </div>
+
+                                <h3 class="font-bold text-gray-900 text-sm leading-snug truncate">
+                                    {{ spk.nama_barang }}
+                                </h3>
+
+                                <p class="text-xs text-gray-400 mt-0.5">
+                                    <span v-if="spk.kode_barang" class="text-blue-700 font-semibold">
+                                        {{ spk.kode_barang }}
+                                    </span>
+                                    <span v-else class="text-orange-600 font-semibold">
+                                        Belum ada kode barang
+                                    </span>
+                                </p>
+                            </div>
+
+                            <Button type="button" variant="outline" class="rounded-xl p-2 h-9 w-9 shrink-0" @click="openDetail(spk)">
+                                <Eye class="w-4 h-4" />
+                            </Button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5 text-xs mt-3">
+                            <div class="bg-gray-50 rounded-xl p-2.5">
+                                <p class="text-gray-400">Cabang</p>
+                                <p class="font-semibold text-gray-900 truncate" :title="spk.cabang?.cabang_nama">
+                                    {{ spk.kode_cabang }} 
+                                    <span v-if="spk.cabang?.cabang_nama" class="text-gray-500 font-normal">
+                                        - {{ spk.cabang.cabang_nama }}
+                                    </span>
+                                </p>
+                            </div>
+
+                            <div class="bg-gray-50 rounded-xl p-2.5">
+                                <p class="text-gray-400">Qty</p>
+                                <p class="font-semibold text-gray-900">{{ spk.qty }} {{ spk.satuan || '' }}</p>
+                            </div>
+
+                            <div class="bg-gray-50 rounded-xl p-2.5">
+                                <p class="text-gray-400">Harga Beli</p>
+                                <p class="font-semibold text-gray-900">{{ rupiah(spk.harga_beli) }}</p>
+                            </div>
+
+                            <div class="bg-gray-50 rounded-xl p-2.5">
+                                <p class="text-gray-400">Tanggal</p>
+                                <p class="font-semibold text-gray-900">{{ formatDate(spk.modified_date) }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 mt-4 pt-4 border-t border-gray-100">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-gray-700">Ketersediaan Barang</span>
+                                
+                                <span 
+                                    class="text-[11px] font-medium border px-2.5 py-0.5 rounded-full"
+                                    :class="{
+                                        'bg-yellow-50 text-yellow-700 border-yellow-200': !spk.is_available || Number(spk.is_available) === 0,
+                                        'bg-green-50 text-green-700 border-green-200': Number(spk.is_available) === 1,
+                                        'bg-red-50 text-red-700 border-red-200': Number(spk.is_available) === 2
+                                    }"
                                 >
-                                    Permintaan Barang Baru
+                                    {{ 
+                                        !spk.is_available || Number(spk.is_available) === 0 
+                                            ? 'Menunggu Verifikasi' 
+                                            : (Number(spk.is_available) === 1 ? 'Tersedia' : 'Tidak Tersedia') 
+                                    }}
                                 </span>
                             </div>
 
-                            <h3 class="font-bold text-gray-900 text-lg leading-snug">
-                                {{ spk.nama_barang }}
-                            </h3>
-
-                            <p class="text-sm text-gray-400 mt-1">
-                                <span
-                                    v-if="spk.kode_barang"
-                                    class="text-blue-700 font-semibold"
+                            <div class="grid grid-cols-3 gap-1.5 mt-1">
+                                <button
+                                    type="button"
+                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition"
+                                    :class="(!spk.is_available || Number(spk.is_available) === 0) ? 'bg-yellow-600 text-white border-yellow-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
+                                    @click="changeKetersediaan(spk, 0)"
                                 >
-                                    {{ spk.kode_barang }}
-                                </span>
-
-                                <span
-                                    v-else
-                                    class="text-orange-600 font-semibold"
+                                    Tunggu
+                                </button>
+                                <button
+                                    type="button"
+                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition"
+                                    :class="Number(spk.is_available) === 1 ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
+                                    @click="changeKetersediaan(spk, 1)"
                                 >
-                                    Belum memiliki kode barang
-                                </span>
-                            </p>
+                                    Tersedia
+                                </button>
+                                <button
+                                    type="button"
+                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition"
+                                    :class="Number(spk.is_available) === 2 ? 'bg-red-600 text-white border-red-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
+                                    @click="changeKetersediaan(spk, 2)"
+                                >
+                                    Tidak Ada
+                                </button>
+                            </div>
                         </div>
-
-                        <Button type="button" variant="outline" class="rounded-2xl" @click="openDetail(spk)">
-                            <Eye class="w-4 h-4" />
-                        </Button>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3 mt-5 text-sm">
-                        <div class="bg-gray-50 rounded-2xl p-3">
-                            <p class="text-gray-400">Cabang</p>
-                            <p class="font-semibold text-gray-900">{{ spk.kode_cabang || '-' }}</p>
-                        </div>
-
-                        <div class="bg-gray-50 rounded-2xl p-3">
-                            <p class="text-gray-400">Qty</p>
-                            <p class="font-semibold text-gray-900">{{ spk.qty }} {{ spk.satuan || '' }}</p>
-                        </div>
-
-                        <div class="bg-gray-50 rounded-2xl p-3">
-                            <p class="text-gray-400">Harga Beli</p>
-                            <p class="font-semibold text-gray-900">{{ rupiah(spk.harga_beli) }}</p>
-                        </div>
-
-                        <div class="bg-gray-50 rounded-2xl p-3">
-                            <p class="text-gray-400">Tanggal</p>
-                            <p class="font-semibold text-gray-900">{{ formatDate(spk.modified_date) }}</p>
-                        </div>
-                    </div>
-
-                    <div class="space-y-3 mt-5">
-                        <button
-                            type="button"
-                            class="w-full flex items-center justify-between border rounded-2xl px-4 py-3"
-                            @click="updateValidasi(spk)"
-                        >
-                            <span class="text-sm font-semibold">Validasi</span>
-                            <span class="text-xs border px-3 py-1 rounded-full" :class="badgeClass(spk.status_validasi)">
-                                {{ statusText(spk.status_validasi, 'Sudah', 'Belum') }}
-                            </span>
-                        </button>
-
-                        <button
-                            type="button"
-                            class="w-full flex items-center justify-between border rounded-2xl px-4 py-3"
-                            @click="updateKirim(spk)"
-                        >
-                            <span class="text-sm font-semibold">Kirim Barang</span>
-                            <span class="text-xs border px-3 py-1 rounded-full" :class="badgeClass(spk.status_kirim_barang)">
-                                {{ statusText(spk.status_kirim_barang, 'Sudah', 'Belum') }}
-                            </span>
-                        </button>
-
-                        <button
-                            type="button"
-                            class="w-full flex items-center justify-between border rounded-2xl px-4 py-3"
-                            @click="updateTerima(spk)"
-                        >
-                            <span class="text-sm font-semibold">Terima Barang</span>
-                            <span class="text-xs border px-3 py-1 rounded-full" :class="badgeClass(spk.status_terima_barang)">
-                                {{ statusText(spk.status_terima_barang, 'Sudah', 'Belum') }}
-                            </span>
-                        </button>
 
                         <Button
                             v-if="!spk.kode_barang"
                             type="button"
-                            class="w-full bg-blue-700 hover:bg-blue-800 text-white rounded-2xl"
+                            class="w-full bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs h-9 mt-1"
                             @click="openMasterBarang(spk)"
                         >
-                            <Plus class="w-4 h-4 mr-2" />
+                            <Plus class="w-4 h-4 mr-1.5" />
                             Buat Master Barang
                         </Button>
                     </div>
-                    
                 </div>
             </div>
 

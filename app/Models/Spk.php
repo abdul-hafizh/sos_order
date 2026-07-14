@@ -38,11 +38,17 @@ class Spk extends Model
         'modified_by',
         'modified_date',
         'gambar_permintaan',
-        'id_barang'
+        'id_barang',
+        'is_available',
     ];
 
     public function barang()
     {
         return $this->belongsTo(Barang::class, 'id_barang', 'id_barang');
+    }
+
+    public function cabang()
+    {
+        return $this->belongsTo(Cabang::class, 'kode_cabang', 'kode_cabang');
     }
 }

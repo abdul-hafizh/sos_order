@@ -6,9 +6,11 @@ use App\Models\Spk;
 use App\Models\Barang;
 use App\Models\BarangDetail;
 use App\Models\BarangGambar;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Libraries\SendTelegram;
 use Inertia\Inertia;
 
 class SpkController extends Controller
@@ -16,7 +18,7 @@ class SpkController extends Controller
     public function index(Request $request)
     {
         $spks = Spk::query()
-            ->with(['barang.details.gambars'])
+            ->with(['barang.details.gambars', 'cabang'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('nama_barang', 'like', "%{$search}%")
@@ -46,9 +48,73 @@ class SpkController extends Controller
         ]);
     }
 
+    public function updateKetersediaan(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'is_available' => 'required|integer|in:0,1,2',
+        ]);
+
+        $spk = Spk::findOrFail($id);
+
+        $spk->update([
+            'is_available' => $validated['is_available'],
+            'modified_by' => auth()->id(),
+            'modified_date' => now(),
+        ]);        
+
+        try {
+            $statusLabels = [
+                0 => 'MENUNGGU VERIFIKASI',
+                1 => 'TERSEDIA (Disetujui)',
+                2 => 'TIDAK TERSEDIA (Ditolak)',
+            ];
+            $statusText = $statusLabels[$validated['is_available']];
+
+            $hargaBeliFormat = 'Rp ' . number_format($spk->harga_beli, 0, ',', '.');
+            $tanggalPesanan = $spk->modified_date ? date('d-m-Y H:i', strtotime($spk->modified_date)) : now()->format('d-m-Y H:i');
+
+            $message = "<b>PEMBERITAHUAN STATUS PESANAN BARANG</b>\n\n";
+            $message .= "Yth. Rekan Cabang <b>{$spk->kode_cabang}</b>,\n";
+            $message .= "Berikut adalah pembaruan status ketersediaan untuk barang yang Anda ajukan:\n\n";
+            $message .= "━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $message .= "<b>Nama Barang :</b> {$spk->nama_barang}\n";
+            $message .= "<b>Qty Pesanan :</b> {$spk->qty} {$spk->satuan}\n";
+            $message .= "<b>Harga Beli   :</b> {$hargaBeliFormat}\n";
+            $message .= "<b>Tgl Pesanan  :</b> {$tanggalPesanan}\n";
+            $message .= "<b>Cabang       :</b> {$spk->kode_cabang}\n";
+            $message .= "━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            $message .= "<b>STATUS SAAT INI :</b>\n";
+            $message .= "<b>[ {$statusText} ]</b>\n\n";
+            
+            if ($validated['is_available'] == 0) {
+                $message .= "<i>Catatan: Permintaan Anda sedang dalam proses verifikasi oleh tim pusat. Harap menunggu informasi selanjutnya.</i>";
+            } elseif ($validated['is_available'] == 1) {
+                $message .= "<i>Catatan: Barang telah dinyatakan tersedia dan akan diproses untuk langkah pengadaan/pengiriman selanjutnya.</i>";
+            } else {
+                $message .= "<i>Catatan: Mohon maaf, barang tidak dapat disediakan saat ini. Silakan hubungi admin pusat untuk informasi lebih lanjut.</i>";
+            }
+
+            $userCabang = User::where('id', $spk->modified_by)
+                ->whereNotNull('telegram_chat_id')
+                ->where('telegram_chat_id', '!=', '')
+                ->first();
+
+            if ($userCabang && $userCabang->telegram_chat_id) {
+                SendTelegram::sendMessage($userCabang->telegram_chat_id, $message);
+            } else {
+                Log::warning("Gagal mengirim notif Telegram SPK ID #{$spk->id_po}: User dengan ID Pembuat '{$spk->modified_by}' tidak ditemukan atau belum mengisi telegram_chat_id.");
+            }
+
+        } catch (\Exception $e) {
+            Log::error("Telegram Notification Error: " . $e->getMessage());
+        }
+
+        return back()->with('success', 'Status ketersediaan barang berhasil diperbarui.');
+    }
+
     public function show($id)
     {
-        $spk = Spk::findOrFail($id);
+        $spk = Spk::with(['barang.details.gambars', 'cabang'])->findOrFail($id);
 
         return Inertia::render('Spk/Show', [
             'spk' => $spk,

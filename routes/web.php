@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/spk/{id}/kirim', [SpkController::class, 'updateKirim'])->name('spk.updateKirim');
     Route::put('/spk/{id}/terima', [SpkController::class, 'updateTerima'])->name('spk.updateTerima');
     Route::post('/spk/{id}/buat-master-barang', [SpkController::class, 'buatMasterBarang'])->name('spk.buatMasterBarang');
+    Route::put('/spk/{id}/ketersediaan', [SpkController::class, 'updateKetersediaan'])->name('spk.updateKetersediaan');
 
     Route::get('/procure', fn() => Inertia::render('Procure'))->name('procure');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
