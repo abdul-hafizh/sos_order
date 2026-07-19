@@ -38,18 +38,27 @@ class Barang extends Model
     ];
 
     protected $casts = [
-        'id_barang'        => 'integer',
-        'kirim_langsung'   => 'boolean',
-        'stok'             => 'integer',
-        'min_stok'         => 'integer',
-        'max_stok'         => 'integer',
-        'active'           => 'boolean',
-        'modified_by'      => 'integer',
-        'modified_date'    => 'datetime',
+        'id_barang' => 'integer',
+        'kirim_langsung' => 'boolean',
+        'stok' => 'integer',
+        'min_stok' => 'integer',
+        'max_stok' => 'integer',
+        'active' => 'boolean',
+        'modified_by' => 'integer',
+        'modified_date' => 'datetime',
     ];
 
     public function details()
     {
         return $this->hasMany(BarangDetail::class, 'id_barang', 'id_barang');
+    }
+
+    public function vendors()
+    {
+        return $this->hasMany(
+            BarangVendor::class,
+            'kode_barang',
+            'kode_barang'
+        );
     }
 }
