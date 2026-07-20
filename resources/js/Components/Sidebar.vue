@@ -35,6 +35,7 @@ const menuItems = [
             { name: 'Divisi', route: 'divisi.index' },
             { name: 'Users', route: 'users.index' },
             { name: 'Vendor', route: 'vendor.index' },
+            { name: 'Barang', route: 'master-barang.index' },
         ]
     },
 ];

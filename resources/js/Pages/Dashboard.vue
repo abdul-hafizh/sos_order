@@ -166,16 +166,16 @@ const addBarangBaruToCart = () => {
 };
 
 const getCartImage = (item) => {
-    // Jika tipe item adalah barang tersedia, langsung ambil dari master barang (t_barang_gambar)
     if (item.tipe_item !== "barang_baru") {
-        const masterImages = item.barang?.details?.flatMap((detail) => detail.gambars || []) || [];
+        const masterImages =
+            item.barang?.details?.flatMap((detail) => detail.gambars || []) ||
+            [];
         if (masterImages.length) {
             return `/storage/${masterImages[0].path_file}`;
         }
         return null;
     }
 
-    // Jika barang baru, ambil dari gambar yang diupload ke keranjang detail
     if (item.gambar?.length) {
         return `/storage/${item.gambar[0].gambar}`;
     }
@@ -432,7 +432,7 @@ const pesanSekarang = () => {
                     >
                         <img
                             :src="previewImage"
-                            class="w-full h-48 object-cover"
+                            class="w-full h-48 object-contain"
                         />
 
                         <button
@@ -471,6 +471,14 @@ const pesanSekarang = () => {
             >
                 Keyword dari gambar:
                 <span class="font-semibold">{{ image_keyword }}</span>
+                <div class=" "></div>
+            </div>
+
+            <div v-if="image_path" class="flex justify-center my-6">
+                <img
+                    :src="`/storage/${image_path}`"
+                    class="w-56 h-56 object-contain rounded-2xl border shadow-md"
+                />
             </div>
 
             <div
@@ -719,7 +727,6 @@ const pesanSekarang = () => {
                         class="border rounded-2xl p-4"
                     >
                         <div class="flex gap-3">
-                            
                             <div>
                                 <div
                                     v-if="item.tipe_item === 'barang_baru'"
@@ -728,17 +735,21 @@ const pesanSekarang = () => {
                                 >
                                     <template v-if="item.gambar?.length">
                                         <img
-                                            v-for="(img, index) in item.gambar.slice(0, 3)"
+                                            v-for="(
+                                                img, index
+                                            ) in item.gambar.slice(0, 3)"
                                             :key="img.id_gambar"
                                             :src="`/storage/${img.gambar}`"
-                                            class="absolute w-14 h-14 object-cover rounded-xl border-2 border-white shadow-lg transition-all duration-200 hover:z-50"
+                                            class="absolute w-14 h-14 object-contain rounded-xl border-2 border-white shadow-lg transition-all duration-200 hover:z-50"
                                             :style="{
                                                 left: `${index * 6}px`,
                                                 top: `${index * 4}px`,
                                                 zIndex: index + 1,
                                                 transform: `rotate(${(index - 1) * 4}deg)`,
                                             }"
-                                            @click.stop="openPreview(item, index)"
+                                            @click.stop="
+                                                openPreview(item, index)
+                                            "
                                         />
 
                                         <div
@@ -753,7 +764,9 @@ const pesanSekarang = () => {
                                         v-else
                                         class="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center border"
                                     >
-                                        <ImagePlus class="w-6 h-6 text-gray-400" />
+                                        <ImagePlus
+                                            class="w-6 h-6 text-gray-400"
+                                        />
                                     </div>
                                 </div>
 
@@ -766,7 +779,10 @@ const pesanSekarang = () => {
                                         :src="getCartImage(item)"
                                         class="w-full h-full object-cover"
                                     />
-                                    <Package v-else class="w-6 h-6 text-gray-400" />
+                                    <Package
+                                        v-else
+                                        class="w-6 h-6 text-gray-400"
+                                    />
                                 </div>
                             </div>
                             <div class="flex-1">
@@ -774,7 +790,12 @@ const pesanSekarang = () => {
                                     v-if="item.tipe_item === 'barang_baru'"
                                     :model-value="item.nama_barang"
                                     class="h-9 text-sm font-semibold"
-                                    @change="updateNamaBarangBaru(item, $event.target.value)"
+                                    @change="
+                                        updateNamaBarangBaru(
+                                            item,
+                                            $event.target.value,
+                                        )
+                                    "
                                 />
 
                                 <h4
@@ -786,16 +807,29 @@ const pesanSekarang = () => {
 
                                 <p
                                     class="text-xs mt-1"
-                                    :class="item.tipe_item === 'barang_baru' ? 'text-orange-600' : 'text-blue-600'"
+                                    :class="
+                                        item.tipe_item === 'barang_baru'
+                                            ? 'text-orange-600'
+                                            : 'text-blue-600'
+                                    "
                                 >
-                                    {{ item.tipe_item === "barang_baru" ? "Permintaan barang baru" : "Barang tersedia" }}
+                                    {{
+                                        item.tipe_item === "barang_baru"
+                                            ? "Permintaan barang baru"
+                                            : "Barang tersedia"
+                                    }}
                                 </p>
 
                                 <div class="flex items-center gap-2 mt-3">
                                     <button
                                         type="button"
                                         class="w-8 h-8 rounded-lg border"
-                                        @click="updateCartQty(item, Number(item.qty) - 1)"
+                                        @click="
+                                            updateCartQty(
+                                                item,
+                                                Number(item.qty) - 1,
+                                            )
+                                        "
                                     >
                                         -
                                     </button>
@@ -805,13 +839,23 @@ const pesanSekarang = () => {
                                         type="number"
                                         min="1"
                                         class="w-16 h-8 text-center"
-                                        @change="updateCartQty(item, Number($event.target.value))"
+                                        @change="
+                                            updateCartQty(
+                                                item,
+                                                Number($event.target.value),
+                                            )
+                                        "
                                     />
 
                                     <button
                                         type="button"
                                         class="w-8 h-8 rounded-lg border"
-                                        @click="updateCartQty(item, Number(item.qty) + 1)"
+                                        @click="
+                                            updateCartQty(
+                                                item,
+                                                Number(item.qty) + 1,
+                                            )
+                                        "
                                     >
                                         +
                                     </button>
@@ -847,7 +891,6 @@ const pesanSekarang = () => {
         </div>
     </AuthenticatedLayout>
 
-    <!-- Modal Preview -->
     <div
         v-if="previewModalData.item"
         class="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6"
@@ -857,7 +900,6 @@ const pesanSekarang = () => {
             class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
             @click.stop
         >
-            <!-- Header -->
             <div
                 class="flex items-center justify-between px-6 py-5 border-b bg-gray-50"
             >
@@ -879,7 +921,6 @@ const pesanSekarang = () => {
                 </button>
             </div>
 
-            <!-- Gallery -->
             <div class="flex-1 overflow-y-auto p-6">
                 <div
                     class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"
@@ -891,7 +932,7 @@ const pesanSekarang = () => {
                     >
                         <img
                             :src="img"
-                            class="w-full aspect-square object-cover transition duration-300 group-hover:scale-105"
+                            class="w-full aspect-square object-contain transition duration-300 group-hover:scale-105"
                         />
 
                         <div
@@ -903,7 +944,6 @@ const pesanSekarang = () => {
                 </div>
             </div>
 
-            <!-- Footer -->
             <div
                 class="border-t bg-white px-6 py-5 flex justify-between items-center"
             >

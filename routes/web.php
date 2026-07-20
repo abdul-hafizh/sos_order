@@ -8,6 +8,8 @@ use App\Http\Controllers\VendorController;
 use App\Http\Controllers\BarangController;
 use App\Http\Controllers\KeranjangController;
 use App\Http\Controllers\SpkController;
+use App\Http\Controllers\MasterBarangController;
+use App\Http\Controllers\BarangVendorController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -57,10 +59,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('divisi', DivisiController::class);
     Route::resource('vendor', VendorController::class);
     Route::resource('barang', BarangController::class);
+    Route::resource('master-barang', MasterBarangController::class);
+
+    Route::prefix('barang-vendor')
+        ->name('barang-vendor.')
+        ->group(function () {
+
+            Route::get('/vendor-list', [BarangVendorController::class, 'vendorList'])
+                ->name('vendor-list');
+
+            Route::get('/{kode_barang}', [BarangVendorController::class, 'index'])
+                ->name('index');
+
+            Route::post('/', [BarangVendorController::class, 'store'])
+                ->name('store');
+
+            Route::put('/{id_barang_vendor}', [BarangVendorController::class, 'update'])
+                ->name('update');
+
+            Route::delete('/{id_barang_vendor}', [BarangVendorController::class, 'destroy'])
+                ->name('destroy');
+        });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+
 });
 
 require __DIR__ . '/auth.php';
