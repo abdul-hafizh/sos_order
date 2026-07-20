@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useForm, router, Link } from "@inertiajs/vue3";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import { Head } from "@inertiajs/vue3";
@@ -21,6 +21,7 @@ import {
     ArrowUp,
     ArrowDown,
     Minus,
+    CirclePile,
 } from "lucide-vue-next";
 import {
     Item,
@@ -30,6 +31,13 @@ import {
     ItemMedia,
     ItemTitle,
 } from "@/Components/ui/item";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/Components/ui/tooltip";
+import SearchSelect from "@/Components/SearchSelect.vue";
 
 const showVendorModal = ref(false);
 const selectedBarang = ref(null);
@@ -180,6 +188,20 @@ const resetSearch = () => {
     );
 };
 
+const changePerPage = () => {
+    router.get(
+        route("master-barang.index"),
+        {
+            search: params.value.search,
+            per_page: params.value.per_page,
+        },
+        {
+            preserveState: true,
+            replace: true,
+        },
+    );
+};
+
 const confirmDelete = (item) => {
     barangToDelete.value = item;
     showDeleteModal.value = true;
@@ -242,12 +264,24 @@ const currency = (value) => {
 
 const openModal = (item = null) => {
     editingBarang.value = item;
+
     if (item) {
         form.defaults(item);
         form.reset();
+
+        const category = categoryMaster.value.find(
+            (c) => c.code === item.category_code,
+        );
+
+        categoryKeyword.value = category ? category.name : "";
     } else {
         form.reset();
+
+        categoryKeyword.value = "";
     }
+
+    showCategoryDropdown.value = false;
+
     showModal.value = true;
 };
 
@@ -271,6 +305,43 @@ const submit = () => {
             onSuccess: () => (showModal.value = false),
         });
     }
+};
+
+const categoryMaster = ref([]);
+const categoryKeyword = ref("");
+const categorySearch = ref("");
+const showCategoryDropdown = ref(false);
+
+const loadCategory = async () => {
+    const res = await axios.get(route("category.list"));
+
+    categoryMaster.value = res.data;
+};
+
+onMounted(() => {
+    loadCategory();
+});
+
+const filteredCategory = computed(() => {
+    if (!categoryKeyword.value) return categoryMaster.value;
+
+    return categoryMaster.value.filter(
+        (item) =>
+            item.name
+                .toLowerCase()
+                .includes(categoryKeyword.value.toLowerCase()) ||
+            item.code
+                .toLowerCase()
+                .includes(categoryKeyword.value.toLowerCase()),
+    );
+});
+
+const selectCategory = (item) => {
+    form.category_code = item.code;
+
+    categoryKeyword.value = item.name;
+
+    showCategoryDropdown.value = false;
 };
 </script>
 x
@@ -321,13 +392,13 @@ x
             <div class="flex gap-2 mb-3 justify-between">
                 <select
                     v-model="params.per_page"
+                    @change="changePerPage"
                     class="border-gray-300 rounded-md text-xs bg-white"
                 >
                     <option value="10">10</option>
                     <option value="25">25</option>
                     <option value="50">50</option>
                 </select>
-                <
                 <div class="relative max-w-xs">
                     <Input
                         v-model="params.search"
@@ -351,126 +422,234 @@ x
                 <Table>
                     <TableHeader class="bg-gray-100">
                         <TableRow>
-                            <TableHead>Kode</TableHead>
-                            <TableHead>Nama Barang</TableHead>
-                            <TableHead>Harga Beli</TableHead>
-                            <TableHead>Harga Jual</TableHead>
-                            <TableHead>Harga Jual HOP</TableHead>
-                            <TableHead>Stok</TableHead>
-                            <TableHead>Margin</TableHead>
-                            <TableHead>Satuan</TableHead>
-                            <TableHead>Satuan POS</TableHead>
-                            <TableHead>Qty POS</TableHead>
-                            <TableHead>Min Vendor</TableHead>
-                            <TableHead>Min Cabang</TableHead>
-                            <TableHead>Min Stok</TableHead>
-                            <TableHead>Max Stok</TableHead>
-                            <TableHead>Kode Kategori</TableHead>
-                            <TableHead>Action</TableHead>
+                            <TableHead class="w-[120px]"
+                                >Id & <br />
+                                Kode Kategori</TableHead
+                            >
+                            <TableHead>Barang</TableHead>
+                            <TableHead class="w-[220px]">Harga</TableHead>
+                            <TableHead class="w-[180px]">Stok</TableHead>
+                            <TableHead class="w-[180px]">Minimum</TableHead>
+                            <TableHead class="w-[170px] text-center"
+                                >Action</TableHead
+                            >
                         </TableRow>
                     </TableHeader>
-                    <TableBody>
-                        <TableRow v-for="b in barangs.data" :key="b.id_barang">
-                            <TableCell class="font-medium">{{
-                                b.kode_barang
-                            }}</TableCell>
-                            <TableCell>{{ b.nama_barang }}</TableCell>
-                            <TableCell>
-                                <div class="flex items-center gap-1">
-                                    {{ currency(b.harga_beli) }}
-                                    <component
-                                        :is="
-                                            getTrend(
-                                                b.harga_beli,
-                                                b.harga_beli_before,
-                                            ).icon
-                                        "
-                                        :class="
-                                            getTrend(
-                                                b.harga_beli,
-                                                b.harga_beli_before,
-                                            ).color
-                                        "
-                                        class="w-3 h-3"
-                                    />
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex items-center gap-1">
-                                    {{ currency(b.harga_jual) }}
-                                    <component
-                                        :is="
-                                            getTrend(
-                                                b.harga_jual,
-                                                b.harga_jual_before,
-                                            ).icon
-                                        "
-                                        :class="
-                                            getTrend(
-                                                b.harga_jual,
-                                                b.harga_jual_before,
-                                            ).color
-                                        "
-                                        class="w-3 h-3"
-                                    />
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex items-center gap-1">
-                                    {{ currency(b.harga_jual_jumbo) }}
-                                    <component
-                                        :is="
-                                            getTrend(
-                                                b.harga_jual_jumbo,
-                                                b.harga_jual_jumbo_before,
-                                            ).icon
-                                        "
-                                        :class="
-                                            getTrend(
-                                                b.harga_jual_jumbo,
-                                                b.harga_jual_jumbo_before,
-                                            ).color
-                                        "
-                                        class="w-3 h-3"
-                                    />
-                                </div>
-                            </TableCell>
-                            <TableCell>{{ b.stok }}</TableCell>
-                            <TableCell>{{ b.margin }}</TableCell>
-                            <TableCell>{{ b.satuan }}</TableCell>
-                            <TableCell>{{ b.satuan_pos }}</TableCell>
-                            <TableCell>{{ b.qty_pos }}</TableCell>
-                            <TableCell>{{ b.min_vendor }}</TableCell>
-                            <TableCell>{{ b.min_cabang }}</TableCell>
-                            <TableCell>{{ b.min_stok }}</TableCell>
-                            <TableCell>{{ b.max_stok }}</TableCell>
-                            <TableCell>{{ b.category_code }}</TableCell>
-                            <TableCell>
-                                <div class="flex gap-2">
-                                    <Button
-                                        size="xs"
-                                        variant="ghost"
-                                        class="bg-blue-500 text-white p-1 rounded-sm"
-                                        @click="openModal(b)"
-                                    >
-                                        <Pencil class="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                        size="xs"
-                                        variant="ghost"
-                                        class="bg-red-500 text-white p-1 rounded-sm"
-                                        @click="confirmDelete(b)"
-                                    >
-                                        <Trash class="w-4 h-4" />
-                                    </Button>
 
-                                    <Button
-                                        size="xs"
-                                        variant="secondary"
-                                        @click="openVendorModal(b)"
+                    <TableBody>
+                        <TableRow
+                            v-for="b in barangs.data"
+                            :key="b.id_barang"
+                            class="align-top"
+                        >
+                            <TableCell>
+                                <div class="font-semibold">
+                                    {{ b.kode_barang }}
+                                </div>
+
+                                <div
+                                    class="text-xs mt-1 inline-flex px-2 py-0.5 rounded-full bg-slate-100 text-slate-600"
+                                >
+                                    {{ b.category_code || "-" }}
+                                </div>
+                            </TableCell>
+
+                            <TableCell>
+                                <div class="font-medium">
+                                    {{ b.nama_barang }}
+                                </div>
+
+                                <div class="text-xs text-gray-500 mt-1">
+                                    <div>
+                                        <span class="font-medium"
+                                            >Satuan :</span
+                                        >
+                                        {{ b.satuan }}
+                                    </div>
+
+                                    <div>
+                                        <span class="font-medium">POS :</span>
+                                        {{ b.satuan_pos || "-" }}
+                                    </div>
+                                </div>
+                            </TableCell>
+
+                            <TableCell>
+                                <div class="space-y-1 text-xs">
+                                    <div
+                                        class="flex justify-between items-center"
                                     >
-                                        Vendor
-                                    </Button>
+                                        <span class="text-gray-500">Beli</span>
+
+                                        <div class="flex items-center gap-1">
+                                            {{ currency(b.harga_beli) }}
+
+                                            <component
+                                                :is="
+                                                    getTrend(
+                                                        b.harga_beli,
+                                                        b.harga_beli_before,
+                                                    ).icon
+                                                "
+                                                :class="
+                                                    getTrend(
+                                                        b.harga_beli,
+                                                        b.harga_beli_before,
+                                                    ).color
+                                                "
+                                                class="w-3 h-3"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        class="flex justify-between items-center"
+                                    >
+                                        <span class="text-gray-500">Jual</span>
+
+                                        <div class="flex items-center gap-1">
+                                            {{ currency(b.harga_jual) }}
+
+                                            <component
+                                                :is="
+                                                    getTrend(
+                                                        b.harga_jual,
+                                                        b.harga_jual_before,
+                                                    ).icon
+                                                "
+                                                :class="
+                                                    getTrend(
+                                                        b.harga_jual,
+                                                        b.harga_jual_before,
+                                                    ).color
+                                                "
+                                                class="w-3 h-3"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-500">HOP</span>
+                                        <span>{{
+                                            currency(b.harga_jual_jumbo)
+                                        }}</span>
+                                    </div>
+
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-500"
+                                            >Margin</span
+                                        >
+                                        <span>{{ b.margin }}%</span>
+                                    </div>
+                                </div>
+                            </TableCell>
+
+                            <TableCell>
+                                <div class="font-semibold text-lg">
+                                    {{ b.stok }}
+                                </div>
+
+                                <div class="text-xs text-gray-500 mt-2">
+                                    <div>
+                                        Qty POS :
+                                        <span class="font-medium">
+                                            {{ b.qty_pos }}
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        Status :
+                                        <span
+                                            :class="
+                                                b.active
+                                                    ? 'text-green-600'
+                                                    : 'text-red-600'
+                                            "
+                                            class="font-medium"
+                                        >
+                                            {{
+                                                b.active ? "Aktif" : "Non Aktif"
+                                            }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </TableCell>
+
+                            <TableCell>
+                                <div class="text-xs space-y-1">
+                                    <div class="flex justify-between">
+                                        <span>Vendor</span>
+                                        <span>{{ b.min_vendor }}</span>
+                                    </div>
+
+                                    <div class="flex justify-between">
+                                        <span>Cabang</span>
+                                        <span>{{ b.min_cabang }}</span>
+                                    </div>
+
+                                    <div class="flex justify-between">
+                                        <span>Min Stok</span>
+                                        <span>{{ b.min_stok }}</span>
+                                    </div>
+
+                                    <div class="flex justify-between">
+                                        <span>Max Stok</span>
+                                        <span>{{ b.max_stok }}</span>
+                                    </div>
+                                </div>
+                            </TableCell>
+
+                            <TableCell>
+                                <div class="flex flex-col items-center gap-2">
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    size="sm"
+                                                    class="bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow shadow-md"
+                                                    @click="openModal(b)"
+                                                >
+                                                    <Pencil class="w-4 h-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+
+                                            <TooltipContent>
+                                                Edit Barang
+                                            </TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    size="sm"
+                                                    class="bg-green-600 hover:bg-green-700 text-white rounded-md shadow shadow-md"
+                                                    @click="openVendorModal(b)"
+                                                >
+                                                   <CirclePile class="w-4 h-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+
+                                            <TooltipContent>
+                                                Kelola Vendor
+                                            </TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    size="sm"
+                                                    class="bg-red-600 hover:bg-red-700 text-white rounded-md shadow shadow-md"
+                                                    @click="confirmDelete(b)"
+                                                >
+                                                    <Trash class="w-4 h-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+
+                                            <TooltipContent>
+                                                Hapus Barang
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </div>
                             </TableCell>
                         </TableRow>
@@ -579,15 +758,53 @@ x
                                     {{ form.errors.nama_barang }}
                                 </p>
                             </div>
-                            <div class="col-span-2">
-                                <label class="text-xs text-gray-400 font-medium"
-                                    >Kategori</label
+                            <div class="col-span-2 relative">
+                                <label
+                                    class="text-xs text-gray-400 font-medium"
                                 >
+                                    Kategori
+                                </label>
+
                                 <Input
-                                    v-model="form.category_code"
-                                    placeholder="Kategori"
-                                    required
+                                    v-model="categoryKeyword"
+                                    placeholder="Cari kategori..."
+                                    @focus="showCategoryDropdown = true"
+                                    @input="showCategoryDropdown = true"
                                 />
+
+                                <div
+                                    v-if="showCategoryDropdown"
+                                    class="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                                >
+                                    <div
+                                        v-for="item in filteredCategory"
+                                        :key="item.code"
+                                        @click="selectCategory(item)"
+                                        class="px-3 py-2 hover:bg-blue-100 cursor-pointer"
+                                    >
+                                        <div class="font-medium">
+                                            {{ item.name }}
+                                        </div>
+
+                                        <div class="text-xs text-gray-500">
+                                            {{ item.code }}
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        v-if="filteredCategory.length === 0"
+                                        class="px-3 py-2 text-gray-400 text-sm"
+                                    >
+                                        Tidak ada kategori ditemukan
+                                    </div>
+                                </div>
+
+                                <p
+                                    v-if="form.errors.category_code"
+                                    class="text-sm text-red-500 mt-1"
+                                >
+                                    {{ form.errors.category_code }}
+                                </p>
                             </div>
                             <div class="col-span-2">
                                 <label class="text-xs text-gray-400 font-medium"
@@ -877,23 +1094,13 @@ x
                                         Vendor
                                     </label>
 
-                                    <select
+                                    <SearchSelect
                                         v-model="vendorForm.kode_vendor"
-                                        class="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                                    >
-                                        <option value="">
-                                            -- Pilih Vendor --
-                                        </option>
-
-                                        <option
-                                            v-for="v in vendorMaster"
-                                            :key="v.kode_vendor"
-                                            :value="v.kode_vendor"
-                                        >
-                                            {{ v.kode_vendor }} -
-                                            {{ v.nama_vendor }}
-                                        </option>
-                                    </select>
+                                        :options="vendorMaster"
+                                        value-key="kode_vendor"
+                                        label-key="nama_vendor"
+                                        placeholder="Cari Vendor..."
+                                    />
 
                                     <div
                                         v-if="vendorForm.errors.kode_vendor"
