@@ -47,7 +47,7 @@ class BarangVendorController extends Controller
             'active' => $validated['active'] ?? true,
         ]);
 
-        return back()->with('message', 'Vendor berhasil ditambahkan.');
+        return back()->with('success', 'Vendor berhasil ditambahkan.');
     }
 
     public function update(Request $request, $id)
@@ -55,12 +55,27 @@ class BarangVendorController extends Controller
         $barangVendor = BarangVendor::findOrFail($id);
 
         $validated = $request->validate([
+            'kode_vendor' => 'required|exists:t_vendor,kode_vendor',
             'active' => 'required|boolean',
         ]);
 
-        $barangVendor->update($validated);
+        $exists = BarangVendor::where('kode_barang', $barangVendor->kode_barang)
+            ->where('kode_vendor', $validated['kode_vendor'])
+            ->where('id_barang_vendor', '!=', $barangVendor->id_barang_vendor)
+            ->exists();
 
-        return back()->with('message', 'Data vendor berhasil diupdate.');
+        if ($exists) {
+            return back()->withErrors([
+                'kode_vendor' => 'Vendor sudah terdaftar pada barang ini.',
+            ]);
+        }
+
+        $barangVendor->update([
+            'kode_vendor' => $validated['kode_vendor'],
+            'active' => $validated['active'],
+        ]);
+
+        return back()->with('success', 'Vendor berhasil diupdate.');
     }
 
     public function destroy($id)
@@ -69,7 +84,7 @@ class BarangVendorController extends Controller
 
         $barangVendor->delete();
 
-        return back()->with('message', 'Vendor berhasil dihapus dari barang.');
+        return back()->with('success', 'Vendor berhasil dihapus dari barang.');
     }
 
     public function vendorList()

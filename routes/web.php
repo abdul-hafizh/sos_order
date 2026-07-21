@@ -10,6 +10,7 @@ use App\Http\Controllers\KeranjangController;
 use App\Http\Controllers\SpkController;
 use App\Http\Controllers\MasterBarangController;
 use App\Http\Controllers\BarangVendorController;
+use App\Http\Controllers\CategoryController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -80,12 +81,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/{id_barang_vendor}', [BarangVendorController::class, 'destroy'])
                 ->name('destroy');
         });
+        
+    Route::prefix('category')->name('category.')->group(function () {
+
+        Route::get('/list', [CategoryController::class, 'list'])
+            ->name('list');
+
+        Route::get('/search', [CategoryController::class, 'search'])
+            ->name('search');
+
+        Route::get('/{categorycode}', [CategoryController::class, 'show'])
+            ->name('show');
+
+    });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-
-
 });
 
 require __DIR__ . '/auth.php';
