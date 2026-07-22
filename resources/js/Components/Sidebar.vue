@@ -26,18 +26,6 @@ const menuItems = [
     { name: 'SPK', route: 'spk.index', icon: ShoppingBagIcon, type: 'single' },
 
     { name: 'Barang', route: 'barang.index', icon: ClipboardDocumentListIcon, type: 'single' },
-
-    {
-        name: 'Master',
-        type: 'group',
-        icon: BuildingOffice2Icon,
-        children: [
-            { name: 'Divisi', route: 'divisi.index' },
-            { name: 'Users', route: 'users.index' },
-            { name: 'Vendor', route: 'vendor.index' },
-            { name: 'Barang', route: 'master-barang.index' },
-        ]
-    },
 ];
 
 const toggleCollapse = () => {
