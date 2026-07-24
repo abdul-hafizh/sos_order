@@ -18,7 +18,7 @@ class SpkController extends Controller
     public function index(Request $request)
     {
         $spks = Spk::query()
-            ->with(['barang.details.gambars', 'cabang'])
+            ->with(['barang.details.gambars', 'cabang', 'gambars'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('nama_barang', 'like', "%{$search}%")
@@ -114,7 +114,7 @@ class SpkController extends Controller
 
     public function show($id)
     {
-        $spk = Spk::with(['barang.details.gambars', 'cabang'])->findOrFail($id);
+        $spk = Spk::with(['barang.details.gambars', 'cabang', 'gambars'])->findOrFail($id);
 
         return Inertia::render('Spk/Show', [
             'spk' => $spk,

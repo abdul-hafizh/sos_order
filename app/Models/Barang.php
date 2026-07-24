@@ -61,4 +61,14 @@ class Barang extends Model
             'kode_barang'
         );
     }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class, 'category_code', 'categorycode');
+    }
+
+    public function produk()
+    {
+        return $this->hasOne(MasterProduk::class, 'kode_barang', 'kode_barang');
+    }
 }

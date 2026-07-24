@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Barang;
 use App\Models\Keranjang;
 use App\Models\KeranjangDetail;
+use App\Models\MasterProduk;
+use App\Models\MasterProdukGambar;
 use App\Models\Spk;
+use App\Models\SpkGambar;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class KeranjangController extends Controller
 {
@@ -24,6 +28,54 @@ class KeranjangController extends Controller
                 'status' => 'draft',
             ]
         );
+    }
+
+    private function generateKodeBarang(): string
+    {
+        do {
+            $kode = 'R' . random_int(1000000, 9999999);
+        } while (Barang::where('kode_barang', $kode)->exists());
+
+        return $kode;
+    }
+
+    private function provisionBarangBaru(KeranjangDetail $item): Barang
+    {
+        $barang = Barang::create([
+            'kode_barang' => $this->generateKodeBarang(),
+            'nama_barang' => Str::limit($item->nama_barang, 100, ''),
+            'harga_beli' => 0,
+            'harga_jual' => 0,
+            'margin' => 0,
+            'satuan' => Str::limit($item->satuan, 10, ''),
+            'stok' => 0,
+            'min_stok' => 0,
+            'max_stok' => 0,
+            'min_vendor' => 0,
+            'min_cabang' => 0,
+            'kirim_langsung' => 0,
+            'active' => 1,
+            'modified_by' => auth()->id(),
+            'modified_date' => now(),
+        ]);
+
+        $produk = MasterProduk::create([
+            'nama_produk' => $item->nama_barang,
+            'kode_barang' => $barang->kode_barang,
+        ]);
+
+        foreach ($item->gambar as $gambar) {
+            MasterProdukGambar::create([
+                'id_produk' => $produk->id_produk,
+                'nama_file' => basename($gambar->gambar),
+                'path_file' => $gambar->gambar,
+            ]);
+        }
+
+        $item->id_barang = $barang->id_barang;
+        $item->setRelation('barang', $barang);
+
+        return $barang;
     }
 
     public function storeBarang(Request $request)
@@ -167,14 +219,18 @@ class KeranjangController extends Controller
             $user = auth()->user();
 
             foreach ($items as $item) {
-                Spk::create([
+                if ($item->tipe_item === 'barang_baru' && !$item->id_barang) {
+                    $this->provisionBarangBaru($item);
+                }
+
+                $spk = Spk::create([
                     'period' => now()->format('Y-m-d'),
                     'po_ke' => 1,
 
                     'kode_cabang' => $user->kode_cabang ?? null,
 
                     'kode_barang' => $item->barang?->kode_barang,
-                    'nama_barang' => $item->nama_barang,
+                    'nama_barang' => Str::limit($item->nama_barang, 50, ''),
                     'id_barang' => $item->id_barang,
                     'qty_last' => 0,
                     'qty_cabang_terima' => 0,
@@ -183,8 +239,8 @@ class KeranjangController extends Controller
                     'harga_beli' => $item->barang?->harga_beli ?? 0,
                     'harga_jual' => $item->barang?->harga_jual ?? 0,
 
-                    'satuan' => $item->satuan,
-                    'satuan_pos' => $item->satuan,
+                    'satuan' => Str::limit($item->satuan, 10, ''),
+                    'satuan_pos' => Str::limit($item->satuan, 10, ''),
                     'qty_pos' => 1,
 
                     'kode_vendor' => null,
@@ -201,9 +257,18 @@ class KeranjangController extends Controller
                         ? 'Permintaan barang baru'
                         : $item->catatan,
 
+                    'gambar_permintaan' => $item->gambar->first()?->gambar,
+
                     'modified_by' => auth()->id(),
                     'modified_date' => now(),
                 ]);
+
+                foreach ($item->gambar as $gambar) {
+                    SpkGambar::create([
+                        'id_po' => $spk->id_po,
+                        'gambar' => $gambar->gambar,
+                    ]);
+                }
             }
 
             $keranjang->details()->delete();

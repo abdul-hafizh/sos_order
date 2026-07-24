@@ -51,4 +51,9 @@ class Spk extends Model
     {
         return $this->belongsTo(Cabang::class, 'kode_cabang', 'kode_cabang');
     }
+
+    public function gambars()
+    {
+        return $this->hasMany(SpkGambar::class, 'id_po', 'id_po');
+    }
 }

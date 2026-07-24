@@ -167,9 +167,7 @@ const addBarangBaruToCart = () => {
 
 const getCartImage = (item) => {
     if (item.tipe_item !== "barang_baru") {
-        const masterImages =
-            item.barang?.details?.flatMap((detail) => detail.gambars || []) ||
-            [];
+        const masterImages = item.barang?.produk?.gambars || [];
         if (masterImages.length) {
             return `/storage/${masterImages[0].path_file}`;
         }
@@ -264,8 +262,7 @@ const rupiah = (value) => {
 };
 
 const getFirstImage = (barang) => {
-    const images =
-        barang.details?.flatMap((detail) => detail.gambars || []) || [];
+    const images = barang.produk?.gambars || [];
     return images[0]?.path_file ? `/storage/${images[0].path_file}` : null;
 };
 
@@ -533,14 +530,14 @@ const pesanSekarang = () => {
 
             <div
                 v-if="barangs?.data?.length"
-                class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6"
+                class="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-6"
             >
                 <div
                     v-for="barang in barangs.data"
                     :key="barang.id_barang"
                     class="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition overflow-hidden group"
                 >
-                    <div class="h-52 bg-gray-100 relative overflow-hidden">
+                    <div class="h-32 md:h-52 bg-gray-100 relative overflow-hidden">
                         <img
                             v-if="getFirstImage(barang)"
                             :src="getFirstImage(barang)"
@@ -551,36 +548,36 @@ const pesanSekarang = () => {
                             v-else
                             class="w-full h-full flex items-center justify-center text-gray-400"
                         >
-                            <Package class="w-16 h-16" />
+                            <Package class="w-10 h-10 md:w-16 md:h-16" />
                         </div>
 
                         <div
-                            class="absolute top-3 left-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold"
+                            class="absolute top-2 left-2 md:top-3 md:left-3 bg-white/90 backdrop-blur px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-semibold"
                         >
                             {{ barang.kode_barang }}
                         </div>
                     </div>
 
-                    <div class="p-5">
+                    <div class="p-3 md:p-5">
                         <h4
-                            class="font-bold text-gray-900 line-clamp-2 min-h-[48px]"
+                            class="font-bold text-gray-900 text-sm md:text-base line-clamp-2 min-h-[36px] md:min-h-[48px]"
                         >
                             {{ barang.nama_barang }}
                         </h4>
 
-                        <p class="text-blue-700 font-bold mt-2">
+                        <p class="text-blue-700 font-bold text-sm md:text-base mt-1 md:mt-2">
                             {{ rupiah(barang.harga_jual) }}
                         </p>
 
                         <div
-                            class="flex items-center justify-between text-sm text-gray-500 mt-4"
+                            class="flex items-center justify-between text-xs md:text-sm text-gray-500 mt-2 md:mt-4"
                         >
                             <span>Stok: {{ barang.stok ?? 0 }}</span>
                             <span>{{ barang.satuan }}</span>
                         </div>
 
                         <div
-                            class="flex items-center gap-2 mt-4 text-sm text-gray-500"
+                            class="hidden md:flex items-center gap-2 mt-4 text-sm text-gray-500"
                         >
                             <Layers class="w-4 h-4" />
                             <span
@@ -588,7 +585,7 @@ const pesanSekarang = () => {
                             >
                         </div>
 
-                        <div class="flex flex-wrap gap-2 mt-3">
+                        <div class="hidden md:flex flex-wrap gap-2 mt-3">
                             <span
                                 v-for="variant in barang.details?.slice(0, 3)"
                                 :key="variant.id_barang_detail"
@@ -607,11 +604,12 @@ const pesanSekarang = () => {
 
                         <Button
                             type="button"
-                            class="w-full mt-5 bg-blue-700 text-white rounded-2xl"
+                            class="w-full mt-3 md:mt-5 bg-blue-700 text-white rounded-2xl text-xs md:text-sm h-9 md:h-10"
                             @click="addToCart(barang)"
                         >
-                            <ShoppingCart class="w-4 h-4 mr-2" />
-                            Masukkan Keranjang
+                            <ShoppingCart class="w-4 h-4 mr-1 md:mr-2" />
+                            <span class="hidden sm:inline">Masukkan Keranjang</span>
+                            <span class="sm:hidden">Tambah</span>
                         </Button>
                     </div>
                 </div>

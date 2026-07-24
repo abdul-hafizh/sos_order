@@ -1,16 +1,17 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useForm, router, Link, Head } from '@inertiajs/vue3';
+import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
+import SearchSelect from '@/Components/SearchSelect.vue';
 import {
     Package,
     Pencil,
     Trash,
     Plus,
     X,
-    ImagePlus,
     Search,
     Layers,
     ShoppingBag
@@ -19,6 +20,7 @@ import {
 const props = defineProps({
     barangs: Object,
     filters: Object,
+    list_satuan: Array,
 });
 
 const showModal = ref(false);
@@ -39,9 +41,13 @@ watch(params, (newParams) => {
     });
 }, { deep: true });
 
+const generateKodeVarian = () => {
+    return 'V' + Math.random().toString(36).slice(2, 8).toUpperCase();
+};
+
 const emptyVariant = () => ({
     nama_variant: 'Default',
-    kode_variant: '',
+    kode_variant: generateKodeVarian(),
     harga_beli: 0,
     harga_jual: 0,
     harga_jual_jumbo: 0,
@@ -56,11 +62,53 @@ const form = useForm({
     kode_barang: '',
     nama_barang: '',
     harga_beli: 0,
+    harga_beli_before: 0,
     harga_jual: 0,
+    harga_jual_before: 0,
+    harga_jual_jumbo: 0,
+    harga_jual_jumbo_before: 0,
     satuan: '',
     stok: 0,
+    qty_pos: 0,
+    min_stok: 0,
+    max_stok: 0,
+    category_code: '',
     variants: [emptyVariant()],
 });
+
+const generateKodeBarang = () => {
+    const randomNumbers = Math.floor(1000000 + Math.random() * 9000000);
+    return `R${randomNumbers}`;
+};
+
+const categoryMaster = ref([]);
+const categoryKeyword = ref('');
+const showCategoryDropdown = ref(false);
+
+const loadCategory = async () => {
+    const res = await axios.get(route('category.list'));
+    categoryMaster.value = res.data;
+};
+
+onMounted(() => {
+    loadCategory();
+});
+
+const filteredCategory = computed(() => {
+    if (!categoryKeyword.value) return categoryMaster.value;
+
+    return categoryMaster.value.filter(
+        (item) =>
+            item.categoryname.toLowerCase().includes(categoryKeyword.value.toLowerCase()) ||
+            item.categorycode.toLowerCase().includes(categoryKeyword.value.toLowerCase())
+    );
+});
+
+const selectCategory = (item) => {
+    form.category_code = item.categorycode;
+    categoryKeyword.value = item.categoryname;
+    showCategoryDropdown.value = false;
+};
 
 const rupiah = (value) => {
     if (!value) return 'Rp 0';
@@ -80,9 +128,19 @@ const openModal = (item = null) => {
         form.kode_barang = item.kode_barang;
         form.nama_barang = item.nama_barang;
         form.harga_beli = item.harga_beli ?? 0;
+        form.harga_beli_before = item.harga_beli_before ?? 0;
         form.harga_jual = item.harga_jual ?? 0;
+        form.harga_jual_before = item.harga_jual_before ?? 0;
+        form.harga_jual_jumbo = item.harga_jual_jumbo ?? 0;
+        form.harga_jual_jumbo_before = item.harga_jual_jumbo_before ?? 0;
         form.satuan = item.satuan ?? '';
         form.stok = item.stok ?? 0;
+        form.qty_pos = item.qty_pos ?? 0;
+        form.min_stok = item.min_stok ?? 0;
+        form.max_stok = item.max_stok ?? 0;
+        form.category_code = item.category_code ?? '';
+
+        categoryKeyword.value = item.category?.categoryname || '';
 
         form.variants = item.details?.length
         ? item.details.map((detail) => ({
@@ -108,9 +166,12 @@ const openModal = (item = null) => {
         : [emptyVariant()];
     } else {
         form.reset();
+        form.kode_barang = generateKodeBarang();
         form.variants = [emptyVariant()];
+        categoryKeyword.value = '';
     }
 
+    showCategoryDropdown.value = false;
     showModal.value = true;
 };
 
@@ -255,39 +316,43 @@ const destroyBarang = () => {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div class="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-5">
                     <div
                         v-for="b in barangs.data"
                         :key="b.id_barang"
-                        class="group rounded-3xl border border-gray-100 bg-white shadow-sm hover:shadow-xl transition overflow-hidden"
+                        class="group rounded-2xl md:rounded-3xl border border-gray-100 bg-white shadow-sm hover:shadow-xl transition overflow-hidden"
                     >
-                        <div class="relative h-52 bg-gray-100">
+                        <div class="relative h-28 md:h-52 bg-gray-100">
                             <img
-                                v-if="b.details?.flatMap(d => d.gambars || [])?.[0]?.path_file"
-                                :src="`/storage/${b.details.flatMap(d => d.gambars || [])[0].path_file}`"
+                                v-if="b.produk?.gambars?.[0]?.path_file"
+                                :src="`/storage/${b.produk.gambars[0].path_file}`"
                                 class="w-full h-full object-cover group-hover:scale-105 transition"
                             />
 
                             <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
-                                <Package class="w-14 h-14" />
+                                <Package class="w-8 h-8 md:w-14 md:h-14" />
                             </div>
 
-                            <div class="absolute top-3 left-3 bg-white/90 text-xs px-3 py-1 rounded-full shadow">
+                            <div class="absolute top-2 left-2 md:top-3 md:left-3 bg-white/90 text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full shadow">
                                 {{ b.kode_barang }}
+                            </div>
+
+                            <div v-if="b.category" class="absolute top-2 right-2 md:top-3 md:right-3 bg-blue-700/90 text-white text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full shadow">
+                                {{ b.category.categoryname }}
                             </div>
                         </div>
 
-                        <div class="p-5">
-                            <h3 class="font-bold text-lg text-gray-800 line-clamp-1">
+                        <div class="p-3 md:p-5">
+                            <h3 class="font-bold text-sm md:text-lg text-gray-800 line-clamp-1">
                                 {{ b.nama_barang }}
                             </h3>
 
-                            <p class="text-blue-700 font-semibold mt-1">
+                            <p class="text-blue-700 font-semibold text-sm md:text-base mt-1">
                                 {{ rupiah(b.harga_jual) }}
                             </p>
 
-                            <div class="flex items-center gap-3 text-sm text-gray-500 mt-3">
-                                <span class="flex items-center gap-1">
+                            <div class="flex items-center gap-3 text-xs md:text-sm text-gray-500 mt-2 md:mt-3">
+                                <span class="hidden md:flex items-center gap-1">
                                     <Layers class="w-4 h-4" />
                                     {{ b.details?.length || 0 }} varian
                                 </span>
@@ -295,7 +360,7 @@ const destroyBarang = () => {
                                 <span>{{ b.satuan }}</span>
                             </div>
 
-                            <div class="flex flex-wrap gap-2 mt-4">
+                            <div class="hidden md:flex flex-wrap gap-2 mt-4">
                                 <span
                                     v-for="v in b.details?.slice(0, 4)"
                                     :key="v.id_barang_detail"
@@ -312,15 +377,15 @@ const destroyBarang = () => {
                                 </span>
                             </div>
 
-                            <div class="flex justify-end gap-2 mt-5 pt-4 border-t">
-                                <Button size="sm" variant="outline" @click="openModal(b)">
-                                    <Pencil class="w-4 h-4 mr-1" />
-                                    Edit
+                            <div class="flex justify-end gap-2 mt-3 md:mt-5 pt-3 md:pt-4 border-t">
+                                <Button size="sm" variant="outline" @click="openModal(b)" class="text-xs md:text-sm px-2 md:px-3">
+                                    <Pencil class="w-4 h-4 md:mr-1" />
+                                    <span class="hidden md:inline">Edit</span>
                                 </Button>
 
-                                <Button size="sm" class="bg-red-600 text-white" @click="confirmDelete(b)">
-                                    <Trash class="w-4 h-4 mr-1" />
-                                    Hapus
+                                <Button size="sm" class="bg-red-600 text-white text-xs md:text-sm px-2 md:px-3" @click="confirmDelete(b)">
+                                    <Trash class="w-4 h-4 md:mr-1" />
+                                    <span class="hidden md:inline">Hapus</span>
                                 </Button>
                             </div>
                         </div>
@@ -351,7 +416,7 @@ const destroyBarang = () => {
                                 {{ editingBarang ? 'Edit Barang' : 'Tambah Barang' }}
                             </h2>
                             <p class="text-sm text-gray-400">
-                                Lengkapi data produk, varian, dan gambar produk.
+                                Lengkapi data produk.
                             </p>
                         </div>
 
@@ -360,26 +425,56 @@ const destroyBarang = () => {
                         </button>
                     </div>
 
-                    <div class="flex border-b px-6">
-                        <button
-                            class="px-4 py-3 text-sm"
-                            :class="activeTab === 'produk' ? 'border-b-2 border-blue-700 text-blue-700 font-bold' : 'text-gray-500'"
-                            @click="activeTab = 'produk'"
-                        >
-                            Data Produk
-                        </button>
-
-                        <button
-                            class="px-4 py-3 text-sm"
-                            :class="activeTab === 'variant' ? 'border-b-2 border-blue-700 text-blue-700 font-bold' : 'text-gray-500'"
-                            @click="activeTab = 'variant'"
-                        >
-                            Varian & Gambar
-                        </button>
-                    </div>
-
                     <form @submit.prevent="submit" class="overflow-y-auto max-h-[72vh] p-6">
-                        <div v-if="activeTab === 'produk'" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div class="relative">
+                                <label class="text-sm font-medium text-gray-600">Kategori</label>
+                                <Input
+                                    v-model="categoryKeyword"
+                                    placeholder="Cari kategori..."
+                                    class="mt-1 rounded-xl"
+                                    @focus="showCategoryDropdown = true"
+                                    @input="showCategoryDropdown = true"
+                                />
+
+                                <div
+                                    v-if="showCategoryDropdown"
+                                    class="absolute z-50 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto"
+                                >
+                                    <div
+                                        v-for="item in filteredCategory"
+                                        :key="item.categorycode"
+                                        @click="selectCategory(item)"
+                                        class="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                                    >
+                                        <div class="font-medium">{{ item.categoryname }}</div>
+                                        <div class="text-xs text-gray-500">{{ item.categorycode }}</div>
+                                    </div>
+
+                                    <div v-if="filteredCategory.length === 0" class="px-3 py-2 text-gray-400 text-sm">
+                                        Tidak ada kategori ditemukan
+                                    </div>
+                                </div>
+
+                                <p v-if="form.errors.category_code" class="text-xs text-red-500 mt-1">
+                                    {{ form.errors.category_code }}
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">Satuan</label>
+                                <SearchSelect
+                                    v-model="form.satuan"
+                                    :options="list_satuan"
+                                    value-key="nama"
+                                    label-key="nama"
+                                    placeholder="Pilih Satuan..."
+                                />
+                                <p v-if="form.errors.satuan" class="text-xs text-red-500 mt-1">
+                                    {{ form.errors.satuan }}
+                                </p>
+                            </div>
+
                             <div>
                                 <label class="text-sm font-medium text-gray-600">Kode Barang</label>
                                 <Input v-model="form.kode_barang" class="mt-1 rounded-xl" required />
@@ -402,141 +497,48 @@ const destroyBarang = () => {
                             </div>
 
                             <div>
+                                <label class="text-sm font-medium text-gray-600">Harga Beli Sebelumnya</label>
+                                <Input v-model="form.harga_beli_before" type="number" class="mt-1 rounded-xl" />
+                            </div>
+
+                            <div>
                                 <label class="text-sm font-medium text-gray-600">Harga Jual</label>
                                 <Input v-model="form.harga_jual" type="number" class="mt-1 rounded-xl" />
                             </div>
 
                             <div>
-                                <label class="text-sm font-medium text-gray-600">Satuan</label>
-                                <Input v-model="form.satuan" placeholder="pcs, box, rim" class="mt-1 rounded-xl" />
+                                <label class="text-sm font-medium text-gray-600">Harga Jual Sebelumnya</label>
+                                <Input v-model="form.harga_jual_before" type="number" class="mt-1 rounded-xl" />
+                            </div>
+
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">Harga Jual Jumbo</label>
+                                <Input v-model="form.harga_jual_jumbo" type="number" class="mt-1 rounded-xl" />
+                            </div>
+
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">Harga Jual Jumbo Sebelumnya</label>
+                                <Input v-model="form.harga_jual_jumbo_before" type="number" class="mt-1 rounded-xl" />
                             </div>
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600">Stok Utama</label>
                                 <Input v-model="form.stok" type="number" class="mt-1 rounded-xl" />
                             </div>
-                        </div>
 
-                        <div v-if="activeTab === 'variant'" class="space-y-5">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <h3 class="font-bold text-gray-800">Varian Produk</h3>
-                                    <p class="text-sm text-gray-400">
-                                        Tambahkan ukuran, warna, tipe, dan upload beberapa gambar.
-                                    </p>
-                                </div>
-
-                                <Button type="button" class="bg-blue-700 text-white" @click="addVariant">
-                                    <Plus class="w-4 h-4 mr-2" />
-                                    Tambah Varian
-                                </Button>
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">Qty POS</label>
+                                <Input v-model="form.qty_pos" type="number" class="mt-1 rounded-xl" />
                             </div>
 
-                            <div
-                                v-for="(variant, index) in form.variants"
-                                :key="index"
-                                class="rounded-3xl border border-gray-200 p-5 bg-gray-50"
-                            >
-                                <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-bold text-gray-700">
-                                        Varian #{{ index + 1 }}
-                                    </h4>
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">Min Stok</label>
+                                <Input v-model="form.min_stok" type="number" class="mt-1 rounded-xl" />
+                            </div>
 
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        class="text-red-600"
-                                        :disabled="form.variants.length === 1"
-                                        @click="removeVariant(index)"
-                                    >
-                                        <Trash class="w-4 h-4 mr-1" />
-                                        Hapus
-                                    </Button>
-                                </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label class="text-sm font-medium text-gray-600">Nama Varian</label>
-                                        <Input
-                                            v-model="variant.nama_variant"
-                                            placeholder="Merah / XL / Tipe A"
-                                            class="mt-1 rounded-xl"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label class="text-sm font-medium text-gray-600">Kode Varian</label>
-                                        <Input
-                                            v-model="variant.kode_variant"
-                                            placeholder="BRG-MRH"
-                                            class="mt-1 rounded-xl"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label class="text-sm font-medium text-gray-600">Stok Varian</label>
-                                        <Input v-model="variant.stok" type="number" class="mt-1 rounded-xl" />
-                                    </div>
-
-                                    <div>
-                                        <label class="text-sm font-medium text-gray-600">Harga Beli</label>
-                                        <Input v-model="variant.harga_beli" type="number" class="mt-1 rounded-xl" />
-                                    </div>
-
-                                    <div>
-                                        <label class="text-sm font-medium text-gray-600">Harga Jual</label>
-                                        <Input v-model="variant.harga_jual" type="number" class="mt-1 rounded-xl" />
-                                    </div>
-
-                                    <div>
-                                        <label class="text-sm font-medium text-gray-600">Harga Jual Jumbo</label>
-                                        <Input v-model="variant.harga_jual_jumbo" type="number" class="mt-1 rounded-xl" />
-                                    </div>
-                                </div>
-
-                                <div class="mt-5">
-                                    <label class="text-sm font-medium text-gray-600">Gambar Varian</label>
-
-                                    <label
-                                        class="mt-2 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-3xl p-6 bg-white cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition"
-                                    >
-                                        <ImagePlus class="w-8 h-8 text-blue-700 mb-2" />
-                                        <span class="text-sm font-medium text-gray-700">
-                                            Klik untuk upload banyak gambar
-                                        </span>
-                                        <span class="text-xs text-gray-400">
-                                            JPG, PNG, WEBP maksimal 2MB per gambar
-                                        </span>
-
-                                        <input
-                                            type="file"
-                                            multiple
-                                            accept="image/*"
-                                            class="hidden"
-                                            @change="handleImages($event, index)"
-                                        />
-                                    </label>
-
-                                    <div v-if="variant.previews?.length" class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
-                                        <div
-                                            v-for="(preview, imageIndex) in variant.previews"
-                                            :key="imageIndex"
-                                            class="relative rounded-2xl overflow-hidden border bg-white group"
-                                        >
-                                            <img :src="preview.url" class="w-full h-28 object-cover" />
-
-                                            <button
-                                                type="button"
-                                                class="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-90"
-                                                @click="removePreview(index, imageIndex)"
-                                            >
-                                                <X class="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-600">Max Stok</label>
+                                <Input v-model="form.max_stok" type="number" class="mt-1 rounded-xl" />
                             </div>
                         </div>
 

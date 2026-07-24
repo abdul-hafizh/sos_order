@@ -11,6 +11,13 @@ use App\Http\Controllers\SpkController;
 use App\Http\Controllers\MasterBarangController;
 use App\Http\Controllers\BarangVendorController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\MasterTipeController;
+use App\Http\Controllers\MasterSatuanController;
+use App\Http\Controllers\MasterBeratController;
+use App\Http\Controllers\MasterUkuranController;
+use App\Http\Controllers\MasterWarnaController;
+use App\Http\Controllers\MasterKarakterController;
+use App\Http\Controllers\MasterProdukController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -61,6 +68,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('vendor', VendorController::class);
     Route::resource('barang', BarangController::class);
     Route::resource('master-barang', MasterBarangController::class);
+
+    Route::resource('master-tipe', MasterTipeController::class);
+    Route::resource('master-satuan', MasterSatuanController::class);
+    Route::resource('master-berat', MasterBeratController::class);
+    Route::resource('master-ukuran', MasterUkuranController::class);
+    Route::resource('master-warna', MasterWarnaController::class);
+    Route::resource('master-karakter', MasterKarakterController::class);
+
+    Route::get('master-produk-barang-options', [MasterProdukController::class, 'barangOptions'])
+        ->name('master-produk.barang-options');
+    Route::resource('master-produk', MasterProdukController::class);
 
     Route::prefix('barang-vendor')
         ->name('barang-vendor.')

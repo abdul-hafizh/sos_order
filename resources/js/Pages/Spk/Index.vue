@@ -181,6 +181,12 @@ const closeMasterBarang = () => {
 };
 
 const getSpkImages = (spk) => {
+    if (spk.gambars?.length) {
+        return spk.gambars
+            .filter((img) => img.gambar)
+            .map((img) => `/storage/${img.gambar}`);
+    }
+
     if (spk.gambar_permintaan) {
         return [`/storage/${spk.gambar_permintaan}`];
     }

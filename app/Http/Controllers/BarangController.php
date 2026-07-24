@@ -6,6 +6,7 @@ use App\Models\Barang;
 use App\Models\BarangDetail;
 use App\Models\BarangGambar;
 use App\Models\Keranjang;
+use App\Models\MasterSatuan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -15,9 +16,32 @@ use Inertia\Inertia;
 
 class BarangController extends Controller
 {
+    private function uniqueKodeVariantRule(Request $request): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail) use ($request) {
+            if (!$value) {
+                return;
+            }
+
+            preg_match('/variants\.(\d+)\.kode_variant/', $attribute, $matches);
+            $index = $matches[1] ?? null;
+            $detailId = $index !== null ? $request->input("variants.$index.id_barang_detail") : null;
+
+            $query = BarangDetail::where('kode_variant', $value);
+
+            if ($detailId) {
+                $query->where('id_barang_detail', '!=', $detailId);
+            }
+
+            if ($query->exists()) {
+                $fail('Kode varian sudah digunakan.');
+            }
+        };
+    }
+
     public function index(Request $request)
     {
-        $barangs = Barang::with(['details.gambars'])
+        $barangs = Barang::with(['details', 'category', 'produk.gambars'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('nama_barang', 'like', "%{$search}%")
@@ -31,12 +55,13 @@ class BarangController extends Controller
         return Inertia::render('Barang/Index', [
             'barangs' => $barangs,
             'filters' => $request->only(['search', 'per_page']),
+            'list_satuan' => MasterSatuan::orderBy('nama')->get(),
         ]);
     }
 
     public function dashboard(Request $request)
     {
-        $barangs = Barang::with(['details.gambars'])
+        $barangs = Barang::with(['details', 'produk.gambars'])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $keywords = preg_split('/[\s,]+/', $request->search);
 
@@ -59,7 +84,7 @@ class BarangController extends Controller
 
         $keranjang = Keranjang::with([
             'details.gambar',
-            'details.barang.details.gambars',
+            'details.barang.produk.gambars',
         ])
             ->where('user_id', auth()->id())
             ->where('status', 'draft')
@@ -160,13 +185,21 @@ class BarangController extends Controller
             'kode_barang' => 'required|unique:t_barang,kode_barang',
             'nama_barang' => 'required|string|max:255',
             'harga_beli' => 'nullable|numeric',
+            'harga_beli_before' => 'nullable|numeric',
             'harga_jual' => 'nullable|numeric',
+            'harga_jual_before' => 'nullable|numeric',
+            'harga_jual_jumbo' => 'nullable|numeric',
+            'harga_jual_jumbo_before' => 'nullable|numeric',
             'satuan' => 'nullable|string|max:50',
             'stok' => 'nullable|integer',
+            'qty_pos' => 'nullable|integer',
+            'min_stok' => 'nullable|integer',
+            'max_stok' => 'nullable|integer',
+            'category_code' => 'nullable|string|max:20|exists:m_category,categorycode',
 
             'variants' => 'nullable|array',
             'variants.*.nama_variant' => 'nullable|string|max:100',
-            'variants.*.kode_variant' => 'nullable|string|max:50',
+            'variants.*.kode_variant' => ['nullable', 'string', 'max:50', $this->uniqueKodeVariantRule($request)],
             'variants.*.harga_beli' => 'nullable|numeric',
             'variants.*.harga_jual' => 'nullable|numeric',
             'variants.*.harga_jual_jumbo' => 'nullable|numeric',
@@ -177,13 +210,29 @@ class BarangController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $validated) {
+            $hargaBeli = $validated['harga_beli'] ?? 0;
+            $hargaJual = $validated['harga_jual'] ?? 0;
+            $hargaJualJumbo = $validated['harga_jual_jumbo'] ?? 0;
+
             $barang = Barang::create([
                 'kode_barang' => $validated['kode_barang'],
                 'nama_barang' => $validated['nama_barang'],
-                'harga_beli' => $validated['harga_beli'] ?? 0,
-                'harga_jual' => $validated['harga_jual'] ?? 0,
+                'harga_beli' => $hargaBeli,
+                'harga_beli_before' => $validated['harga_beli_before'] ?? 0,
+                'harga_jual' => $hargaJual,
+                'harga_jual_before' => $validated['harga_jual_before'] ?? 0,
+                'harga_jual_jumbo' => $hargaJualJumbo,
+                'harga_jual_jumbo_before' => $validated['harga_jual_jumbo_before'] ?? 0,
+                'margin' => $hargaJual - $hargaBeli,
                 'satuan' => $validated['satuan'] ?? null,
                 'stok' => $validated['stok'] ?? 0,
+                'qty_pos' => $validated['qty_pos'] ?? 0,
+                'min_stok' => $validated['min_stok'] ?? 0,
+                'max_stok' => $validated['max_stok'] ?? 0,
+                'category_code' => $validated['category_code'] ?? null,
+                'min_vendor' => 0,
+                'min_cabang' => 0,
+                'kirim_langsung' => 0,
                 'active' => 1,
                 'modified_by' => auth()->id(),
                 'modified_date' => now(),
@@ -279,14 +328,22 @@ class BarangController extends Controller
             'kode_barang' => 'required|unique:t_barang,kode_barang,' . $id . ',id_barang',
             'nama_barang' => 'required|string|max:255',
             'harga_beli' => 'nullable|numeric',
+            'harga_beli_before' => 'nullable|numeric',
             'harga_jual' => 'nullable|numeric',
+            'harga_jual_before' => 'nullable|numeric',
+            'harga_jual_jumbo' => 'nullable|numeric',
+            'harga_jual_jumbo_before' => 'nullable|numeric',
             'satuan' => 'nullable|string|max:50',
             'stok' => 'nullable|integer',
+            'qty_pos' => 'nullable|integer',
+            'min_stok' => 'nullable|integer',
+            'max_stok' => 'nullable|integer',
+            'category_code' => 'nullable|string|max:20|exists:m_category,categorycode',
 
             'variants' => 'nullable|array',
             'variants.*.id_barang_detail' => 'nullable|integer',
             'variants.*.nama_variant' => 'nullable|string|max:100',
-            'variants.*.kode_variant' => 'nullable|string|max:50',
+            'variants.*.kode_variant' => ['nullable', 'string', 'max:50', $this->uniqueKodeVariantRule($request)],
             'variants.*.harga_beli' => 'nullable|numeric',
             'variants.*.harga_jual' => 'nullable|numeric',
             'variants.*.harga_jual_jumbo' => 'nullable|numeric',
@@ -300,13 +357,29 @@ class BarangController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $validated, $barang) {
+            $hargaBeli = $validated['harga_beli'] ?? 0;
+            $hargaJual = $validated['harga_jual'] ?? 0;
+            $hargaJualJumbo = $validated['harga_jual_jumbo'] ?? 0;
+
             $barang->update([
                 'kode_barang' => $validated['kode_barang'],
                 'nama_barang' => $validated['nama_barang'],
-                'harga_beli' => $validated['harga_beli'] ?? 0,
-                'harga_jual' => $validated['harga_jual'] ?? 0,
+                'harga_beli' => $hargaBeli,
+                'harga_beli_before' => $validated['harga_beli_before'] ?? 0,
+                'harga_jual' => $hargaJual,
+                'harga_jual_before' => $validated['harga_jual_before'] ?? 0,
+                'harga_jual_jumbo' => $hargaJualJumbo,
+                'harga_jual_jumbo_before' => $validated['harga_jual_jumbo_before'] ?? 0,
+                'margin' => $hargaJual - $hargaBeli,
                 'satuan' => $validated['satuan'] ?? null,
                 'stok' => $validated['stok'] ?? 0,
+                'qty_pos' => $validated['qty_pos'] ?? 0,
+                'min_stok' => $validated['min_stok'] ?? 0,
+                'max_stok' => $validated['max_stok'] ?? 0,
+                'category_code' => $validated['category_code'] ?? null,
+                'min_vendor' => 0,
+                'min_cabang' => 0,
+                'kirim_langsung' => 0,
                 'modified_by' => auth()->id(),
                 'modified_date' => now(),
             ]);
