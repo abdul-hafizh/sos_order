@@ -58,10 +58,6 @@ const submit = () => {
                     </Button>
                 </form>
             </div>
-
-            <p class="text-center text-sm text-slate-500 mt-6">
-                Belum punya akun? <Link :href="route('register')" class="text-blue-600 font-semibold hover:underline">Daftar sekarang</Link>
-            </p>
         </div>
     </div>
 </template>
