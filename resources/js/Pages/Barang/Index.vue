@@ -18,6 +18,7 @@ import {
     CirclePile,
     ArrowUp,
     ArrowDown,
+    Minus,
 } from "lucide-vue-next";
 import {
     Table,
@@ -525,6 +526,7 @@ const destroyVendor = () => {
                         {{ appliedSearch }}
                     </span>
                 </div>
+                
                 <div
                     class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6"
                 >
@@ -728,6 +730,7 @@ const destroyVendor = () => {
                         </div>
                     </div>
                 </div>
+                
                 <div
                     class="mt-6 flex flex-wrap gap-1 justify-center md:justify-end"
                 >
