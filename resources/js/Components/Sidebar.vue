@@ -84,9 +84,9 @@ menuItems
         class="hidden md:flex flex-col bg-white border-r border-slate-200 h-screen sticky top-0 transition-all duration-300 ease-in-out z-40"
         :class="[isCollapsed ? 'w-20' : 'w-60']">
         <div class="h-16 flex items-center px-6 border-b border-slate-100 shrink-0">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0 text-white font-bold">P
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0 text-white font-bold">S
             </div>
-            <span v-if="!isCollapsed" class="ml-3 font-semibold text-slate-900 tracking-tight">Procsy</span>
+            <span v-if="!isCollapsed" class="ml-3 font-semibold text-slate-900 tracking-tight">SOS ORDER</span>
         </div>
 
         <nav class="flex-grow p-4 space-y-2 overflow-y-auto">
