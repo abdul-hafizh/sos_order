@@ -20,6 +20,10 @@ import {
 
 const props = defineProps({
     barangs: Object,
+    categories: {
+        type: Array,
+        default: () => [],
+    },
     filters: Object,
     image_keyword: String,
     image_path: String,
@@ -195,6 +199,7 @@ const resetSearch = () => {
     imageForm.reset();
     params.value.search = "";
     appliedSearch.value = params.value.search;
+    params.value.category_code = "";
 
     router.get(
         route("dashboard"),
@@ -247,8 +252,13 @@ const searchByImage = () => {
 
 const params = ref({
     search: props.filters?.search || "",
+    category_code: props.filters?.category_code || "",
     image_keyword: props.image_keyword || "",
     image_path: props.image_path || "",
+});
+
+const selectedCategory = computed(() => {
+    return params.value.category_code;
 });
 
 const appliedSearch = ref(props.filters.search || "");
@@ -259,6 +269,23 @@ const searchData = () => {
         {
             search: params.value.search,
             per_page: params.value.per_page,
+            category_code: params.value.category_code,
+        },
+        {
+            preserveState: true,
+            replace: true,
+        },
+    );
+};
+
+const selectCategory = (categoryCode) => {
+    params.value.category_code = categoryCode;
+
+    router.get(
+        route("dashboard"),
+        {
+            search: params.value.search,
+            category_code: categoryCode,
         },
         {
             preserveState: true,
@@ -560,274 +587,388 @@ const pesanSekarang = () => {
                         Masukkan Keranjang Hasil Foto
                     </Button>
                 </div>
-                <div class="flex items-center justify-between my-5">
-                <div>
-                    <h3 class="text-xl font-bold text-gray-900">
-                        Hasil Pencarian Barang
-                    </h3>
-                    <p class="text-sm text-gray-400">
-                        Menampilkan {{ barangs?.data?.length || 0 }} barang.
-                    </p>
-                </div>
-
-                <div
-                    class="flex flex-col md:flex-row gap-3 justify-center mt-5"
-                >
-                    <Button
-                        type="button"
-                        variant="outline"
-                        class="rounded-2xl"
-                        @click="resetSearch"
-                    >
-                        Reset
-                    </Button>
-                </div>
-            </div>
-
-            <div
-                v-if="barangs?.data?.length"
-                class="flex overflow-x-auto gap-3 md:gap-6 pb-4 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
-            >
-                <div
-                    v-for="barang in barangs.data"
-                    :key="barang.id_barang"
-                    class="flex-shrink-0 w-[260px] md:w-[320px] snap-start bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition overflow-hidden group flex flex-col"
-                >
+                <div class="my-5">
+                    <!-- Header & Tombol Reset -->
                     <div
-                        class="h-32 md:h-52 bg-gray-100 relative overflow-hidden"
+                        class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6"
                     >
-                        <img
-                            v-if="getFirstImage(barang)"
-                            :src="getFirstImage(barang)"
-                            class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                        />
-
-                        <div
-                            v-else
-                            class="w-full h-full flex items-center justify-center text-gray-400"
-                        >
-                            <Package class="w-10 h-10 md:w-16 md:h-16" />
-                        </div>
-
-                        <div
-                            class="absolute top-2 left-2 md:top-3 md:left-3 bg-white/90 backdrop-blur px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-semibold"
-                        >
-                            {{ barang.kode_barang }}
-                        </div>
-                    </div>
-
-                    <div class="p-3 md:p-5 flex flex-col flex-grow">
-                        <h4
-                            class="font-bold text-gray-900 text-sm md:text-base line-clamp-2 min-h-[36px] md:min-h-[48px]"
-                        >
-                            {{ barang.nama_barang }}
-                        </h4>
-
-                        <div
-                            class="space-y-1.5 bg-gray-50/70 p-3 rounded-xl border border-gray-100/80 mb-3 mt-2"
-                        >
-                            <div
-                                class="flex items-center justify-between text-xs md:text-sm"
-                            >
-                                <span class="text-gray-500 font-medium"
-                                    >Harga Beli</span
-                                >
-                                <div
-                                    class="flex items-center gap-1.5 font-semibold text-gray-700"
-                                >
-                                    <span>{{ rupiah(barang.harga_beli) }}</span>
-                                    <component
-                                        :is="
-                                            getTrend(
-                                                barang.harga_beli,
-                                                barang.harga_beli_before,
-                                            ).icon
-                                        "
-                                        :class="
-                                            getTrend(
-                                                barang.harga_beli,
-                                                barang.harga_beli_before,
-                                            ).color
-                                        "
-                                        class="w-3.5 h-3.5"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                class="flex items-center justify-between text-xs md:text-sm"
-                            >
-                                <span class="text-gray-500 font-medium"
-                                    >Harga Jual</span
-                                >
-                                <div
-                                    class="flex items-center gap-1.5 font-semibold text-blue-600"
-                                >
-                                    <span>{{ rupiah(barang.harga_jual) }}</span>
-                                    <component
-                                        :is="
-                                            getTrend(
-                                                barang.harga_jual,
-                                                barang.harga_jual_before,
-                                            ).icon
-                                        "
-                                        :class="
-                                            getTrend(
-                                                barang.harga_jual,
-                                                barang.harga_jual_before,
-                                            ).color
-                                        "
-                                        class="w-3.5 h-3.5"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                class="flex items-center justify-between text-xs md:text-sm"
-                            >
-                                <span class="text-gray-500 font-medium"
-                                    >Harga Jumbo</span
-                                >
-                                <div
-                                    class="flex items-center gap-1.5 font-semibold text-indigo-600"
-                                >
-                                    <span>{{
-                                        rupiah(barang.harga_jual_jumbo)
-                                    }}</span>
-                                    <component
-                                        :is="
-                                            getTrend(
-                                                barang.harga_jual_jumbo,
-                                                barang.harga_jual_jumbo_before,
-                                            ).icon
-                                        "
-                                        :class="
-                                            getTrend(
-                                                barang.harga_jual_jumbo,
-                                                barang.harga_jual_jumbo_before,
-                                            ).color
-                                        "
-                                        class="w-3.5 h-3.5"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div
-                            class="flex items-center justify-between text-xs md:text-sm text-gray-500 mt-auto"
-                        >
-                            <span>Stok: {{ barang.stok ?? 0 }}</span>
-                            <span>{{ barang.satuan }}</span>
-                        </div>
-
-                        <div
-                            class="hidden md:flex items-center gap-2 mt-3 text-sm text-gray-500"
-                        >
-                            <Layers class="w-4 h-4" />
-                            <span
-                                >{{ barang.details?.length || 0 }} varian</span
-                            >
-                        </div>
-
-                        <div class="hidden md:flex flex-wrap gap-2 mt-2">
-                            <span
-                                v-for="variant in barang.details?.slice(0, 3)"
-                                :key="variant.id_barang_detail"
-                                class="text-xs bg-gray-100 px-3 py-1 rounded-full"
-                            >
-                                {{ variant.nama_variant }}
-                            </span>
-
-                            <span
-                                v-if="barang.details?.length > 3"
-                                class="text-xs bg-gray-100 px-3 py-1 rounded-full"
-                            >
-                                +{{ barang.details.length - 3 }}
-                            </span>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900">
+                                Hasil Pencarian Barang
+                            </h3>
+                            <p class="text-sm text-gray-400">
+                                Menampilkan
+                                {{ barangs?.data?.length || 0 }} barang.
+                            </p>
                         </div>
 
                         <Button
                             type="button"
-                            class="w-full mt-3 md:mt-4 bg-blue-700 text-white rounded-2xl text-xs md:text-sm h-9 md:h-10"
-                            @click="addToCart(barang)"
+                            variant="outline"
+                            class="rounded-2xl w-fit"
+                            @click="resetSearch"
                         >
-                            <ShoppingCart class="w-4 h-4 mr-1 md:mr-2" />
-                            <span class="hidden sm:inline"
-                                >Masukkan Keranjang</span
-                            >
-                            <span class="sm:hidden">Tambah</span>
+                            Reset
                         </Button>
                     </div>
-                </div>
-            </div>
 
-            <div
-                v-else
-                class="bg-white rounded-3xl border border-red-100 shadow-sm p-12 text-center"
-            >
-                <Package class="w-16 h-16 mx-auto text-red-300 mb-4" />
+                    <!-- Layout Utama: Sidebar & Area Konten (Horizontal Scroll) -->
+                    <div class="flex flex-col lg:flex-row gap-6 items-start">
+                        <!-- Sidebar Kategori -->
+                        <aside
+                            class="w-full lg:w-64 bg-gray-50 rounded-3xl border border-gray-100 p-4 h-fit lg:sticky lg:top-6 flex-shrink-0 shadow-sm"
+                        >
+                            <div class="flex items-center gap-2 mb-4 px-2">
+                                <Layers class="w-5 h-5 text-blue-600" />
+                                <h4 class="font-bold text-gray-900">
+                                    Kategori
+                                </h4>
+                            </div>
 
-                <h3 class="font-bold text-red-700">Barang tidak ditemukan</h3>
+                            <div class="space-y-1">
+                                <!-- Semua Kategori -->
+                                <button
+                                    type="button"
+                                    @click="selectCategory('')"
+                                    class="w-full text-left px-4 py-2.5 rounded-2xl text-sm transition font-medium"
+                                    :class="
+                                        !selectedCategory
+                                            ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                                            : 'text-gray-600 hover:bg-white hover:text-blue-600'
+                                    "
+                                >
+                                    Semua Kategori
+                                </button>
 
-                <p class="text-sm text-gray-500 mt-2">
-                    Barang yang Anda cari tidak tersedia di database.
-                </p>
+                                <!-- List Kategori -->
+                                <button
+                                    v-for="category in categories"
+                                    :key="category.code"
+                                    type="button"
+                                    @click="selectCategory(category.code)"
+                                    class="w-full text-left px-4 py-2.5 rounded-2xl text-sm transition font-medium"
+                                    :class="
+                                        selectedCategory === category.code
+                                            ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                                            : 'text-gray-600 hover:bg-white hover:text-blue-600'
+                                    "
+                                >
+                                    {{ category.name }}
+                                </button>
+                            </div>
+                        </aside>
 
-                <p v-if="image_keyword" class="text-sm text-gray-400 mt-2">
-                    Keyword dari gambar:
-                    <span class="font-semibold">{{ image_keyword }}</span>
-                </p>
+                        <!-- Area Card Barang / Empty State -->
+                        <div class="flex-grow w-full overflow-hidden">
+                            <!-- Kondisi: Ada Barang (Horizontal Scroll / Slider) -->
+                            <div
+                                v-if="barangs?.data?.length"
+                                class="flex overflow-x-auto gap-3 md:gap-6 pb-4 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
+                            >
+                                <div
+                                    v-for="barang in barangs.data"
+                                    :key="barang.id_barang"
+                                    class="flex-shrink-0 w-[260px] md:w-[320px] snap-start bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden group flex flex-col"
+                                >
+                                    <!-- Gambar & Badge Kode Barang -->
+                                    <div
+                                        class="h-32 md:h-52 bg-gray-100 relative overflow-hidden"
+                                    >
+                                        <img
+                                            v-if="getFirstImage(barang)"
+                                            :src="getFirstImage(barang)"
+                                            class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                        />
 
-                <p class="text-sm text-blue-600 mt-3">
-                    Anda tetap dapat membuat permintaan barang baru. Gambar yang
-                    diupload akan disimpan sebagai referensi untuk admin.
-                </p>
+                                        <div
+                                            v-else
+                                            class="w-full h-full flex items-center justify-center text-gray-400"
+                                        >
+                                            <Package
+                                                class="w-10 h-10 md:w-16 md:h-16"
+                                            />
+                                        </div>
 
-                <div
-                    class="flex flex-col md:flex-row justify-center gap-3 mt-6"
-                >
-                    <Button
-                        type="button"
-                        class="bg-blue-700 text-white rounded-2xl"
-                        @click="addBarangBaruToCart"
-                        :disabled="barangBaruForm.processing"
+                                        <div
+                                            class="absolute top-2 left-2 md:top-3 md:left-3 bg-white/90 backdrop-blur px-2.5 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold shadow-sm"
+                                        >
+                                            {{ barang.kode_barang }}
+                                        </div>
+                                    </div>
+
+                                    <!-- Informasi Detail Card -->
+                                    <div
+                                        class="p-3 md:p-5 flex flex-col flex-grow"
+                                    >
+                                        <h4
+                                            class="font-bold text-gray-900 text-sm md:text-base line-clamp-2 min-h-[36px] md:min-h-[48px]"
+                                        >
+                                            {{ barang.nama_barang }}
+                                        </h4>
+
+                                        <!-- Kotak Harga -->
+                                        <div
+                                            class="space-y-1.5 bg-gray-50/70 p-3 rounded-2xl border border-gray-100/80 mb-3 mt-2"
+                                        >
+                                            <div
+                                                class="flex items-center justify-between text-xs md:text-sm"
+                                            >
+                                                <span
+                                                    class="text-gray-500 font-medium"
+                                                    >Harga Beli</span
+                                                >
+                                                <div
+                                                    class="flex items-center gap-1.5 font-semibold text-gray-700"
+                                                >
+                                                    <span>{{
+                                                        rupiah(
+                                                            barang.harga_beli,
+                                                        )
+                                                    }}</span>
+                                                    <component
+                                                        :is="
+                                                            getTrend(
+                                                                barang.harga_beli,
+                                                                barang.harga_beli_before,
+                                                            ).icon
+                                                        "
+                                                        :class="
+                                                            getTrend(
+                                                                barang.harga_beli,
+                                                                barang.harga_beli_before,
+                                                            ).color
+                                                        "
+                                                        class="w-3.5 h-3.5"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div
+                                                class="flex items-center justify-between text-xs md:text-sm"
+                                            >
+                                                <span
+                                                    class="text-gray-500 font-medium"
+                                                    >Harga Jual</span
+                                                >
+                                                <div
+                                                    class="flex items-center gap-1.5 font-semibold text-blue-600"
+                                                >
+                                                    <span>{{
+                                                        rupiah(
+                                                            barang.harga_jual,
+                                                        )
+                                                    }}</span>
+                                                    <component
+                                                        :is="
+                                                            getTrend(
+                                                                barang.harga_jual,
+                                                                barang.harga_jual_before,
+                                                            ).icon
+                                                        "
+                                                        :class="
+                                                            getTrend(
+                                                                barang.harga_jual,
+                                                                barang.harga_jual_before,
+                                                            ).color
+                                                        "
+                                                        class="w-3.5 h-3.5"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div
+                                                class="flex items-center justify-between text-xs md:text-sm"
+                                            >
+                                                <span
+                                                    class="text-gray-500 font-medium"
+                                                    >Harga Jumbo</span
+                                                >
+                                                <div
+                                                    class="flex items-center gap-1.5 font-semibold text-indigo-600"
+                                                >
+                                                    <span>{{
+                                                        rupiah(
+                                                            barang.harga_jual_jumbo,
+                                                        )
+                                                    }}</span>
+                                                    <component
+                                                        :is="
+                                                            getTrend(
+                                                                barang.harga_jual_jumbo,
+                                                                barang.harga_jual_jumbo_before,
+                                                            ).icon
+                                                        "
+                                                        :class="
+                                                            getTrend(
+                                                                barang.harga_jual_jumbo,
+                                                                barang.harga_jual_jumbo_before,
+                                                            ).color
+                                                        "
+                                                        class="w-3.5 h-3.5"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Stok & Satuan -->
+                                        <div
+                                            class="flex items-center justify-between text-xs md:text-sm text-gray-500 mt-auto"
+                                        >
+                                            <span
+                                                >Stok:
+                                                {{ barang.stok ?? 0 }}</span
+                                            >
+                                            <span
+                                                class="font-medium text-gray-700"
+                                                >{{ barang.satuan }}</span
+                                            >
+                                        </div>
+
+                                        <!-- Varian -->
+                                        <div
+                                            class="hidden md:flex items-center gap-2 mt-3 text-sm text-gray-500"
+                                        >
+                                            <Layers class="w-4 h-4" />
+                                            <span
+                                                >{{
+                                                    barang.details?.length || 0
+                                                }}
+                                                varian</span
+                                            >
+                                        </div>
+
+                                        <div
+                                            class="hidden md:flex flex-wrap gap-1.5 mt-2"
+                                        >
+                                            <span
+                                                v-for="variant in barang.details?.slice(
+                                                    0,
+                                                    3,
+                                                )"
+                                                :key="variant.id_barang_detail"
+                                                class="text-xs bg-gray-100 px-2.5 py-1 rounded-full text-gray-600"
+                                            >
+                                                {{ variant.nama_variant }}
+                                            </span>
+
+                                            <span
+                                                v-if="
+                                                    barang.details?.length > 3
+                                                "
+                                                class="text-xs bg-gray-100 px-2.5 py-1 rounded-full text-gray-600"
+                                            >
+                                                +{{ barang.details.length - 3 }}
+                                            </span>
+                                        </div>
+
+                                        <!-- Tombol Aksi -->
+                                        <Button
+                                            type="button"
+                                            class="w-full mt-3 md:mt-4 bg-blue-700 hover:bg-blue-800 text-white rounded-2xl text-xs md:text-sm h-9 md:h-10 shadow-sm"
+                                            @click="addToCart(barang)"
+                                        >
+                                            <ShoppingCart
+                                                class="w-4 h-4 mr-1 md:mr-2"
+                                            />
+                                            <span class="hidden sm:inline"
+                                                >Masukkan Keranjang</span
+                                            >
+                                            <span class="sm:hidden"
+                                                >Tambah</span
+                                            >
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Kondisi: Barang Tidak Ditemukan (Empty State) -->
+                            <div
+                                v-else
+                                class="bg-white rounded-3xl border border-red-100 shadow-sm p-8 md:p-12 text-center"
+                            >
+                                <Package
+                                    class="w-16 h-16 mx-auto text-red-300 mb-4"
+                                />
+
+                                <h3 class="font-bold text-red-700 text-lg">
+                                    Barang tidak ditemukan
+                                </h3>
+
+                                <p
+                                    class="text-sm text-gray-500 mt-2 max-w-md mx-auto"
+                                >
+                                    Barang yang Anda cari tidak tersedia di
+                                    database.
+                                </p>
+
+                                <p
+                                    v-if="image_keyword"
+                                    class="text-sm text-gray-400 mt-2"
+                                >
+                                    Keyword dari gambar:
+                                    <span class="font-semibold text-gray-700">{{
+                                        image_keyword
+                                    }}</span>
+                                </p>
+
+                                <p
+                                    class="text-sm text-blue-600 mt-3 max-w-md mx-auto bg-blue-50 p-3 rounded-2xl border border-blue-100"
+                                >
+                                    Anda tetap dapat membuat permintaan barang
+                                    baru. Gambar yang diupload akan disimpan
+                                    sebagai referensi untuk admin.
+                                </p>
+
+                                <div
+                                    class="flex flex-col md:flex-row justify-center gap-3 mt-6"
+                                >
+                                    <Button
+                                        type="button"
+                                        class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl shadow-sm"
+                                        @click="addBarangBaruToCart"
+                                        :disabled="barangBaruForm.processing"
+                                    >
+                                        <Plus class="w-4 h-4 mr-2" />
+                                        {{
+                                            barangBaruForm.processing
+                                                ? "Memasukkan..."
+                                                : "Masukkan sebagai Barang Baru"
+                                        }}
+                                    </Button>
+
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        class="rounded-2xl"
+                                        @click="resetSearch"
+                                    >
+                                        Reset
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pagination Links -->
+                    <div
+                        v-if="barangs?.links?.length"
+                        class="mt-8 flex flex-wrap gap-2 justify-center"
                     >
-                        <Plus class="w-4 h-4 mr-2" />
-                        {{
-                            barangBaruForm.processing
-                                ? "Memasukkan..."
-                                : "Masukkan sebagai Barang Baru"
-                        }}
-                    </Button>
-
-                    <Button
-                        type="button"
-                        variant="outline"
-                        class="rounded-2xl"
-                        @click="resetSearch"
-                    >
-                        Reset
-                    </Button>
+                        <Link
+                            v-for="(link, index) in barangs.links"
+                            :key="index"
+                            :href="link.url ?? '#'"
+                        >
+                            <Button
+                                size="sm"
+                                :variant="link.active ? 'default' : 'outline'"
+                                :disabled="!link.url"
+                                class="rounded-xl"
+                                v-html="link.label"
+                            />
+                        </Link>
+                    </div>
                 </div>
-            </div>
-
-            <div
-                v-if="barangs?.links?.length"
-                class="mt-8 flex flex-wrap gap-2 justify-center"
-            >
-                <Link
-                    v-for="(link, index) in barangs.links"
-                    :key="index"
-                    :href="link.url ?? '#'"
-                >
-                    <Button
-                        size="sm"
-                        :variant="link.active ? 'default' : 'outline'"
-                        :disabled="!link.url"
-                        v-html="link.label"
-                    />
-                </Link>
-            </div>
             </div>
         </div>
 
