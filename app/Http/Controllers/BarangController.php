@@ -7,6 +7,7 @@ use App\Models\BarangDetail;
 use App\Models\BarangGambar;
 use App\Models\Keranjang;
 use App\Models\MasterSatuan;
+use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -78,9 +79,26 @@ class BarangController extends Controller
                     }
                 });
             })
+
+            // Filter berdasarkan kategori
+            ->when($request->filled('category_code'), function ($query) use ($request) {
+                $query->where(
+                    'category_code',
+                    $request->category_code
+                );
+            })
+
             ->orderByDesc('id_barang')
             ->paginate(12)
             ->withQueryString();
+
+        // Ambil list kategori
+        $categories = Category::select([
+            'categorycode',
+            'categoryname',
+        ])
+            ->orderBy('categoryname')
+            ->get();
 
         $keranjang = Keranjang::with([
             'details.gambar',
@@ -94,9 +112,19 @@ class BarangController extends Controller
 
         return Inertia::render('Dashboard', [
             'barangs' => $barangs,
-            'filters' => $request->only('search'),
+
+            // List kategori
+            'categories' => $categories,
+
+            // Search + kategori yang sedang aktif
+            'filters' => $request->only([
+                'search',
+                'category_code',
+            ]),
+
             'image_keyword' => $request->input('image_keyword'),
             'image_path' => $request->input('image_path'),
+
             'keranjang' => [
                 'id_keranjang' => $keranjang?->id_keranjang,
                 'items' => $cartItems,
@@ -105,7 +133,6 @@ class BarangController extends Controller
             ],
         ]);
     }
-
     public function searchByImage(Request $request)
     {
         $file = $request->file('image');
