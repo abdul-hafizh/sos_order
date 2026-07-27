@@ -13,6 +13,9 @@ import {
     X,
     ShoppingCart,
     Plus,
+    ArrowUp,
+    ArrowDown,
+    Minus,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -58,6 +61,12 @@ const hasSearch = computed(() => params.value.search || props.image_keyword);
 const cartItems = computed(() => props.keranjang?.items || []);
 const totalCartQty = computed(() => props.keranjang?.total_baris || 0);
 const showCart = ref(false);
+
+const getTrend = (current, before) => {
+    if (current > before) return { icon: ArrowUp, color: "text-green-600" };
+    if (current < before) return { icon: ArrowDown, color: "text-red-600" };
+    return { icon: Minus, color: "text-gray-400" };
+};
 
 const addCartForm = useForm({
     id_barang: null,
@@ -185,6 +194,7 @@ const resetSearch = () => {
     previewImage.value = null;
     imageForm.reset();
     params.value.search = "";
+    appliedSearch.value = params.value.search;
 
     router.get(
         route("dashboard"),
@@ -241,17 +251,21 @@ const params = ref({
     image_path: props.image_path || "",
 });
 
-watch(
-    params,
-    (newParams) => {
-        router.get(route("dashboard"), newParams, {
+const appliedSearch = ref(props.filters.search || "");
+const searchData = () => {
+    appliedSearch.value = params.value.search;
+    router.get(
+        route("dashboard"),
+        {
+            search: params.value.search,
+            per_page: params.value.per_page,
+        },
+        {
             preserveState: true,
-            preserveScroll: true,
             replace: true,
-        });
-    },
-    { deep: true },
-);
+        },
+    );
+};
 
 const rupiah = (value) => {
     return new Intl.NumberFormat("id-ID", {
@@ -349,162 +363,204 @@ const pesanSekarang = () => {
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <div
-                    class="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm p-6"
-                >
-                    <div class="flex items-center gap-3 mb-5">
-                        <div class="bg-blue-100 text-blue-700 p-3 rounded-2xl">
-                            <Search class="w-6 h-6" />
-                        </div>
-
-                        <div>
-                            <h3 class="font-bold text-gray-900">
-                                Cari berdasarkan teks
-                            </h3>
-                            <p class="text-sm text-gray-400">
-                                Cari berdasarkan nama barang atau kode barang.
-                            </p>
-                        </div>
+            <div
+                class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-8"
+            >
+                <!-- Header Utama -->
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="bg-blue-50 text-blue-600 p-3 rounded-2xl">
+                        <Search class="w-6 h-6" />
                     </div>
-
-                    <div class="relative">
-                        <Search
-                            class="w-5 h-5 absolute left-4 top-3.5 text-gray-400"
-                        />
-
-                        <Input
-                            v-model="params.search"
-                            placeholder="Contoh: botol, tumbler, paper bag..."
-                            class="pl-11 h-12 rounded-2xl text-base"
-                        />
+                    <div>
+                        <h3
+                            class="font-bold text-gray-900 text-base md:text-lg"
+                        >
+                            Pencarian Produk
+                        </h3>
+                        <p class="text-xs md:text-sm text-gray-400">
+                            Cari produk lebih cepat menggunakan teks atau upload
+                            foto.
+                        </p>
                     </div>
                 </div>
 
-                <form
-                    class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6"
-                    @submit.prevent="searchByImage"
+                <div
+                    class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
                 >
-                    <div class="flex items-center gap-3 mb-5">
-                        <div
-                            class="bg-indigo-100 text-indigo-700 p-3 rounded-2xl"
-                        >
-                            <ImagePlus class="w-6 h-6" />
+                    <div
+                        class="lg:col-span-2 flex flex-col justify-between bg-gray-50/50 p-5 rounded-2xl border border-gray-100"
+                    >
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2"
+                            >
+                                Berdasarkan Nama / Kode
+                            </label>
+                            <div class="relative">
+                                <Search
+                                    class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                                />
+                                <Input
+                                    v-model="params.search"
+                                    @keyup.enter="searchData"
+                                    placeholder="Contoh: botol, tumbler, paper bag..."
+                                    class="pl-11 pr-10 h-12 rounded-xl text-base border-gray-200 focus:border-blue-600 focus:ring-blue-600/20 w-full bg-white"
+                                />
+                                <button
+                                    v-if="params.search"
+                                    type="button"
+                                    @click="resetSearch"
+                                    class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition duration-200 p-1"
+                                    title="Bersihkan pencarian"
+                                >
+                                    ✕
+                                </button>
+                            </div>
                         </div>
 
-                        <div>
-                            <h3 class="font-bold text-gray-900">
-                                Cari berdasarkan gambar
-                            </h3>
-                            <p class="text-sm text-gray-400">
-                                Upload foto barang.
-                            </p>
+                        <div
+                            v-if="appliedSearch"
+                            class="flex flex-wrap items-center justify-between gap-2 mt-4 pt-3 border-t border-gray-200/60 text-xs text-gray-500"
+                        >
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span>Keyword:</span>
+                                <span
+                                    class="bg-blue-50 border border-blue-100 text-blue-700 font-semibold px-2.5 py-0.5 rounded-full"
+                                >
+                                    "{{ appliedSearch }}"
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                @click="resetSearch"
+                                class="text-red-600 hover:underline font-medium"
+                            >
+                                Reset
+                            </button>
                         </div>
                     </div>
 
-                    <label
-                        v-if="!previewImage"
-                        class="border-2 border-dashed border-gray-300 hover:border-indigo-500 hover:bg-indigo-50 transition rounded-3xl p-6 flex flex-col items-center justify-center cursor-pointer"
+                    <form
+                        @submit.prevent="searchByImage"
+                        class="lg:col-span-1 flex flex-col justify-between bg-gray-50/50 p-5 rounded-2xl border border-gray-100"
                     >
-                        <UploadCloud class="w-9 h-9 text-indigo-700 mb-2" />
-                        <span class="text-sm font-semibold text-gray-700"
-                            >Klik untuk upload gambar</span
-                        >
-                        <span class="text-xs text-gray-400 mt-1"
-                            >JPG, PNG, WEBP</span
-                        >
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2"
+                            >
+                                Berdasarkan Foto Produk
+                            </label>
 
-                        <input
-                            name="image"
-                            type="file"
-                            accept="image/*"
-                            class="hidden"
-                            @change="handleImage"
-                        />
-                    </label>
+                            <label
+                                v-if="!previewImage"
+                                class="border-2 border-dashed border-gray-300 hover:border-indigo-500 hover:bg-indigo-50/50 transition rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer bg-white h-[48px]"
+                            >
+                                <div
+                                    class="flex items-center gap-2 text-gray-500"
+                                >
+                                    <UploadCloud
+                                        class="w-5 h-5 text-indigo-600"
+                                    />
+                                    <span
+                                        class="text-xs font-semibold text-gray-700"
+                                        >Upload Gambar</span
+                                    >
+                                </div>
 
-                    <div
-                        v-else
-                        class="relative rounded-3xl overflow-hidden border"
-                    >
-                        <img
-                            :src="previewImage"
-                            class="w-full h-48 object-contain"
-                        />
+                                <input
+                                    name="image"
+                                    type="file"
+                                    accept="image/*"
+                                    class="hidden"
+                                    @change="handleImage"
+                                />
+                            </label>
 
-                        <button
-                            type="button"
-                            class="absolute top-3 right-3 bg-black/60 text-white p-2 rounded-full"
-                            @click="clearImage"
-                        >
-                            <X class="w-4 h-4" />
-                        </button>
+                            <div
+                                v-else
+                                class="relative rounded-2xl overflow-hidden border bg-white flex items-center justify-center h-[48px] px-3"
+                            >
+                                <img
+                                    :src="previewImage"
+                                    class="h-full object-contain py-1"
+                                />
+
+                                <button
+                                    type="button"
+                                    class="absolute right-2 bg-black/60 hover:bg-black text-white p-1 rounded-full transition"
+                                    @click="clearImage"
+                                    title="Hapus gambar"
+                                >
+                                    <X class="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <Button
+                                type="submit"
+                                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-10 text-xs md:text-sm font-medium shadow-sm"
+                                :disabled="
+                                    !imageForm.image || imageForm.processing
+                                "
+                            >
+                                {{
+                                    imageForm.processing
+                                        ? "Mencari..."
+                                        : "Cari dengan Gambar"
+                                }}
+                            </Button>
+                            <p
+                                v-if="imageForm.errors.image"
+                                class="text-xs text-red-500 mt-1"
+                            >
+                                {{ imageForm.errors.image }}
+                            </p>
+                        </div>
+                    </form>
+                </div>
+                <div
+                    v-if="image_keyword"
+                    class="my-5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-2xl px-5 py-3 text-sm"
+                >
+                    Keyword dari gambar:
+                    <span class="font-semibold">{{ image_keyword }}</span>
+                    <div class=" "></div>
+                </div>
+
+                <div v-if="image_path" class="flex justify-center my-6">
+                    <img
+                        :src="`/storage/${image_path}`"
+                        class="w-[350px] h-[350px] object-contain rounded-2xl border shadow-md"
+                    />
+                </div>
+
+                <div
+                    v-if="image_keyword"
+                    class="mb-6 bg-white border border-indigo-100 rounded-3xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                >
+                    <div>
+                        <h3 class="font-bold text-gray-900">
+                            Barang yang dicari tidak ada?
+                        </h3>
+
+                        <p class="text-sm text-gray-500">
+                            Anda tetap bisa memasukkan hasil foto ke keranjang
+                            sebagai
+                            <b>permintaan barang baru</b>.
+                        </p>
                     </div>
 
                     <Button
-                        type="submit"
-                        class="w-full mt-4 bg-indigo-700 text-white rounded-2xl h-11"
-                        :disabled="!imageForm.image || imageForm.processing"
+                        type="button"
+                        class="bg-indigo-700 text-white rounded-2xl"
+                        @click="addBarangBaruToCart"
                     >
-                        {{
-                            imageForm.processing
-                                ? "Mencari..."
-                                : "Cari dengan Gambar"
-                        }}
+                        <Plus class="w-4 h-4 mr-2" />
+                        Masukkan Keranjang Hasil Foto
                     </Button>
-
-                    <p
-                        v-if="imageForm.errors.image"
-                        class="text-xs text-red-500 mt-2"
-                    >
-                        {{ imageForm.errors.image }}
-                    </p>
-                </form>
-            </div>
-
-            <div
-                v-if="image_keyword"
-                class="mb-5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-2xl px-5 py-3 text-sm"
-            >
-                Keyword dari gambar:
-                <span class="font-semibold">{{ image_keyword }}</span>
-                <div class=" "></div>
-            </div>
-
-            <div v-if="image_path" class="flex justify-center my-6">
-                <img
-                    :src="`/storage/${image_path}`"
-                    class="w-56 h-56 object-contain rounded-2xl border shadow-md"
-                />
-            </div>
-
-            <div
-                v-if="image_keyword"
-                class="mb-6 bg-white border border-indigo-100 rounded-3xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-            >
-                <div>
-                    <h3 class="font-bold text-gray-900">
-                        Barang yang dicari tidak ada?
-                    </h3>
-
-                    <p class="text-sm text-gray-500">
-                        Anda tetap bisa memasukkan hasil foto ke keranjang
-                        sebagai
-                        <b>permintaan barang baru</b>.
-                    </p>
                 </div>
-
-                <Button
-                    type="button"
-                    class="bg-indigo-700 text-white rounded-2xl"
-                    @click="addBarangBaruToCart"
-                >
-                    <Plus class="w-4 h-4 mr-2" />
-                    Masukkan Keranjang Hasil Foto
-                </Button>
-            </div>
-
-            <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center justify-between my-5">
                 <div>
                     <h3 class="text-xl font-bold text-gray-900">
                         Hasil Pencarian Barang
@@ -530,14 +586,16 @@ const pesanSekarang = () => {
 
             <div
                 v-if="barangs?.data?.length"
-                class="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-6"
+                class="flex overflow-x-auto gap-3 md:gap-6 pb-4 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
             >
                 <div
                     v-for="barang in barangs.data"
                     :key="barang.id_barang"
-                    class="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition overflow-hidden group"
+                    class="flex-shrink-0 w-[260px] md:w-[320px] snap-start bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition overflow-hidden group flex flex-col"
                 >
-                    <div class="h-32 md:h-52 bg-gray-100 relative overflow-hidden">
+                    <div
+                        class="h-32 md:h-52 bg-gray-100 relative overflow-hidden"
+                    >
                         <img
                             v-if="getFirstImage(barang)"
                             :src="getFirstImage(barang)"
@@ -558,26 +616,112 @@ const pesanSekarang = () => {
                         </div>
                     </div>
 
-                    <div class="p-3 md:p-5">
+                    <div class="p-3 md:p-5 flex flex-col flex-grow">
                         <h4
                             class="font-bold text-gray-900 text-sm md:text-base line-clamp-2 min-h-[36px] md:min-h-[48px]"
                         >
                             {{ barang.nama_barang }}
                         </h4>
 
-                        <p class="text-blue-700 font-bold text-sm md:text-base mt-1 md:mt-2">
-                            {{ rupiah(barang.harga_jual) }}
-                        </p>
+                        <div
+                            class="space-y-1.5 bg-gray-50/70 p-3 rounded-xl border border-gray-100/80 mb-3 mt-2"
+                        >
+                            <div
+                                class="flex items-center justify-between text-xs md:text-sm"
+                            >
+                                <span class="text-gray-500 font-medium"
+                                    >Harga Beli</span
+                                >
+                                <div
+                                    class="flex items-center gap-1.5 font-semibold text-gray-700"
+                                >
+                                    <span>{{ rupiah(barang.harga_beli) }}</span>
+                                    <component
+                                        :is="
+                                            getTrend(
+                                                barang.harga_beli,
+                                                barang.harga_beli_before,
+                                            ).icon
+                                        "
+                                        :class="
+                                            getTrend(
+                                                barang.harga_beli,
+                                                barang.harga_beli_before,
+                                            ).color
+                                        "
+                                        class="w-3.5 h-3.5"
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                class="flex items-center justify-between text-xs md:text-sm"
+                            >
+                                <span class="text-gray-500 font-medium"
+                                    >Harga Jual</span
+                                >
+                                <div
+                                    class="flex items-center gap-1.5 font-semibold text-blue-600"
+                                >
+                                    <span>{{ rupiah(barang.harga_jual) }}</span>
+                                    <component
+                                        :is="
+                                            getTrend(
+                                                barang.harga_jual,
+                                                barang.harga_jual_before,
+                                            ).icon
+                                        "
+                                        :class="
+                                            getTrend(
+                                                barang.harga_jual,
+                                                barang.harga_jual_before,
+                                            ).color
+                                        "
+                                        class="w-3.5 h-3.5"
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                class="flex items-center justify-between text-xs md:text-sm"
+                            >
+                                <span class="text-gray-500 font-medium"
+                                    >Harga Jumbo</span
+                                >
+                                <div
+                                    class="flex items-center gap-1.5 font-semibold text-indigo-600"
+                                >
+                                    <span>{{
+                                        rupiah(barang.harga_jual_jumbo)
+                                    }}</span>
+                                    <component
+                                        :is="
+                                            getTrend(
+                                                barang.harga_jual_jumbo,
+                                                barang.harga_jual_jumbo_before,
+                                            ).icon
+                                        "
+                                        :class="
+                                            getTrend(
+                                                barang.harga_jual_jumbo,
+                                                barang.harga_jual_jumbo_before,
+                                            ).color
+                                        "
+                                        class="w-3.5 h-3.5"
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
                         <div
-                            class="flex items-center justify-between text-xs md:text-sm text-gray-500 mt-2 md:mt-4"
+                            class="flex items-center justify-between text-xs md:text-sm text-gray-500 mt-auto"
                         >
                             <span>Stok: {{ barang.stok ?? 0 }}</span>
                             <span>{{ barang.satuan }}</span>
                         </div>
 
                         <div
-                            class="hidden md:flex items-center gap-2 mt-4 text-sm text-gray-500"
+                            class="hidden md:flex items-center gap-2 mt-3 text-sm text-gray-500"
                         >
                             <Layers class="w-4 h-4" />
                             <span
@@ -585,7 +729,7 @@ const pesanSekarang = () => {
                             >
                         </div>
 
-                        <div class="hidden md:flex flex-wrap gap-2 mt-3">
+                        <div class="hidden md:flex flex-wrap gap-2 mt-2">
                             <span
                                 v-for="variant in barang.details?.slice(0, 3)"
                                 :key="variant.id_barang_detail"
@@ -604,11 +748,13 @@ const pesanSekarang = () => {
 
                         <Button
                             type="button"
-                            class="w-full mt-3 md:mt-5 bg-blue-700 text-white rounded-2xl text-xs md:text-sm h-9 md:h-10"
+                            class="w-full mt-3 md:mt-4 bg-blue-700 text-white rounded-2xl text-xs md:text-sm h-9 md:h-10"
                             @click="addToCart(barang)"
                         >
                             <ShoppingCart class="w-4 h-4 mr-1 md:mr-2" />
-                            <span class="hidden sm:inline">Masukkan Keranjang</span>
+                            <span class="hidden sm:inline"
+                                >Masukkan Keranjang</span
+                            >
                             <span class="sm:hidden">Tambah</span>
                         </Button>
                     </div>
@@ -681,6 +827,7 @@ const pesanSekarang = () => {
                         v-html="link.label"
                     />
                 </Link>
+            </div>
             </div>
         </div>
 
