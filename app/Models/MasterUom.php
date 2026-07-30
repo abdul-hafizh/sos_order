@@ -5,16 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
-class MasterProdukGambar extends Model
+class MasterUom extends Model
 {
-    protected $table = 'master_produk_gambar';
-    protected $primaryKey = 'id_produk_gambar';
+    protected $table = 'master_uom';
+    protected $primaryKey = 'id_uom';
 
     protected $fillable = [
-        'id_produk',
-        'nama_file',
-        'path_file',
+        'nama_uom',
+        'deskripsi',
         'created_by',
+        'updated_by',
     ];
 
     protected static function boot()
@@ -24,10 +24,9 @@ class MasterProdukGambar extends Model
         static::creating(function ($model) {
             $model->created_by = Auth::id();
         });
-    }
 
-    public function produk()
-    {
-        return $this->belongsTo(MasterProduk::class, 'id_produk', 'id_produk');
+        static::saving(function ($model) {
+            $model->updated_by = Auth::id();
+        });
     }
 }

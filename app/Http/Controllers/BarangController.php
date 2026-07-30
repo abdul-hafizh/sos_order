@@ -6,7 +6,14 @@ use App\Models\Barang;
 use App\Models\BarangDetail;
 use App\Models\BarangGambar;
 use App\Models\Keranjang;
+use App\Models\MasterBerat;
+use App\Models\MasterKarakter;
+use App\Models\MasterProduk;
 use App\Models\MasterSatuan;
+use App\Models\MasterTipe;
+use App\Models\MasterUkuran;
+use App\Models\MasterUom;
+use App\Models\MasterWarna;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +45,28 @@ class BarangController extends Controller
                 $fail('Kode varian sudah digunakan.');
             }
         };
+    }
+
+    /**
+     * Cocokkan satu keyword ke nama/kode barang, sekaligus ke data produk & detail
+     * (nama produk, type, satuan, berat, ukuran, warna, karakter, uom) yang sudah di-join.
+     */
+    private function applyKeywordMatch($query, string $keyword): void
+    {
+        $like = "%{$keyword}%";
+
+        $query->orWhere('nama_barang', 'like', $like)
+            ->orWhere('kode_barang', 'like', $like)
+            ->orWhereHas('produk', function ($qp) use ($like) {
+                $qp->whereHas('produk', fn($q2) => $q2->where('nama_produk', 'like', $like))
+                    ->orWhereHas('tipe', fn($q2) => $q2->where('nama', 'like', $like))
+                    ->orWhereHas('satuan', fn($q2) => $q2->where('nama', 'like', $like))
+                    ->orWhereHas('berat', fn($q2) => $q2->where('nama', 'like', $like))
+                    ->orWhereHas('ukuran', fn($q2) => $q2->where('nama', 'like', $like))
+                    ->orWhereHas('warna', fn($q2) => $q2->where('nama', 'like', $like))
+                    ->orWhereHas('karakter', fn($q2) => $q2->where('nama', 'like', $like))
+                    ->orWhereHas('uom', fn($q2) => $q2->where('nama_uom', 'like', $like));
+            });
     }
 
     public function index(Request $request)
@@ -74,8 +103,7 @@ class BarangController extends Controller
                             continue;
                         }
 
-                        $q->orWhere('nama_barang', 'like', "%{$keyword}%")
-                            ->orWhere('kode_barang', 'like', "%{$keyword}%");
+                        $this->applyKeywordMatch($q, $keyword);
                     }
                 });
             })
@@ -150,6 +178,26 @@ class BarangController extends Controller
         $base64 = base64_encode(file_get_contents($file->getRealPath()));
         $mime = $file->getMimeType();
 
+        $referensi = [
+            'nama produk' => MasterProduk::orderBy('nama_produk')->limit(300)->pluck('nama_produk'),
+            'type' => MasterTipe::orderBy('nama')->pluck('nama'),
+            'satuan' => MasterSatuan::orderBy('nama')->pluck('nama'),
+            'berat' => MasterBerat::orderBy('nama')->pluck('nama'),
+            'ukuran' => MasterUkuran::orderBy('nama')->pluck('nama'),
+            'warna' => MasterWarna::orderBy('nama')->pluck('nama'),
+            'karakter' => MasterKarakter::orderBy('nama')->pluck('nama'),
+            'uom' => MasterUom::orderBy('nama_uom')->pluck('nama_uom'),
+        ];
+
+        $referensiText = collect($referensi)
+            ->map(fn($values, $label) => $values->isEmpty() ? null : "- {$label}: " . $values->implode(', '))
+            ->filter()
+            ->implode("\n");
+
+        $prompt = "Analisis gambar produk ini. Data produk di database kami tersimpan dalam bentuk produk beserta detailnya, yaitu nama produk, type, satuan, berat, ukuran, warna, karakter, dan uom (satuan unit). Berikut daftar nilai yang benar-benar ada di database untuk tiap kategori tersebut:\n"
+            . ($referensiText !== '' ? $referensiText : '(belum ada data referensi)')
+            . "\n\nTugasmu: berdasarkan gambar, berikan 3 sampai 8 keyword pencarian dalam bahasa Indonesia (1 kata per keyword). Utamakan/prioritaskan istilah yang PERSIS ada pada daftar referensi di atas (nama produk, type, satuan, berat, ukuran, warna, karakter, atau uom) jika cocok dengan yang terlihat di gambar, supaya pencarian ke database lebih spesifik dan akurat. Jika tidak ada istilah referensi yang cocok, boleh gunakan kata umum lain yang menggambarkan produknya. Jawab hanya JSON: {\"keywords\":[\"...\"]}";
+
         $response = Http::withToken(env('OPENAI_API_KEY'))
             ->timeout(60)
             ->post('https://api.openai.com/v1/responses', [
@@ -160,7 +208,7 @@ class BarangController extends Controller
                         'content' => [
                             [
                                 'type' => 'input_text',
-                                'text' => 'Analisis gambar produk ini. Berikan 3 sampai 8 keyword pencarian barang dalam bahasa Indonesia dalam 1 kata saja. Jawab hanya JSON: {"keywords":["..."]}',
+                                'text' => $prompt,
                             ],
                             [
                                 'type' => 'input_image',

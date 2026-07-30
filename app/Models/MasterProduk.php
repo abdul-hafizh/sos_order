@@ -13,13 +13,6 @@ class MasterProduk extends Model
     protected $fillable = [
         'nama_produk',
         'deskripsi',
-        'kode_barang',
-        'id_tipe',
-        'id_satuan',
-        'id_berat',
-        'id_ukuran',
-        'id_warna',
-        'id_karakter',
         'created_by',
         'updated_by',
     ];
@@ -37,43 +30,8 @@ class MasterProduk extends Model
         });
     }
 
-    public function tipe()
+    public function details()
     {
-        return $this->belongsTo(MasterTipe::class, 'id_tipe', 'id_tipe');
-    }
-
-    public function satuan()
-    {
-        return $this->belongsTo(MasterSatuan::class, 'id_satuan', 'id_satuan');
-    }
-
-    public function berat()
-    {
-        return $this->belongsTo(MasterBerat::class, 'id_berat', 'id_berat');
-    }
-
-    public function ukuran()
-    {
-        return $this->belongsTo(MasterUkuran::class, 'id_ukuran', 'id_ukuran');
-    }
-
-    public function warna()
-    {
-        return $this->belongsTo(MasterWarna::class, 'id_warna', 'id_warna');
-    }
-
-    public function karakter()
-    {
-        return $this->belongsTo(MasterKarakter::class, 'id_karakter', 'id_karakter');
-    }
-
-    public function gambars()
-    {
-        return $this->hasMany(MasterProdukGambar::class, 'id_produk', 'id_produk');
-    }
-
-    public function barang()
-    {
-        return $this->belongsTo(Barang::class, 'kode_barang', 'kode_barang');
+        return $this->hasMany(MasterProdukDetail::class, 'id_produk', 'id_produk');
     }
 }

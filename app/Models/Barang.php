@@ -69,6 +69,6 @@ class Barang extends Model
 
     public function produk()
     {
-        return $this->hasOne(MasterProduk::class, 'kode_barang', 'kode_barang');
+        return $this->hasOne(MasterProdukDetail::class, 'kode_barang', 'kode_barang');
     }
 }

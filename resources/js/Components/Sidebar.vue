@@ -46,12 +46,14 @@ const menuItems = [
         type: 'group',
         children: [
             { name: 'Produk', route: 'master-produk.index' },
+            { name: 'Produk Detail', route: 'master-produk-detail.index' },
             { name: 'Type', route: 'master-tipe.index' },
             { name: 'Satuan', route: 'master-satuan.index' },
             { name: 'Berat', route: 'master-berat.index' },
             { name: 'Ukuran', route: 'master-ukuran.index' },
             { name: 'Warna', route: 'master-warna.index' },
             { name: 'Karakter', route: 'master-karakter.index' },
+            { name: 'UOM', route: 'master-uom.index' },
         ],
     },
 ];

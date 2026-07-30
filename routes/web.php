@@ -18,6 +18,8 @@ use App\Http\Controllers\MasterUkuranController;
 use App\Http\Controllers\MasterWarnaController;
 use App\Http\Controllers\MasterKarakterController;
 use App\Http\Controllers\MasterProdukController;
+use App\Http\Controllers\MasterProdukDetailController;
+use App\Http\Controllers\MasterUomController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -76,9 +78,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('master-warna', MasterWarnaController::class);
     Route::resource('master-karakter', MasterKarakterController::class);
 
-    Route::get('master-produk-barang-options', [MasterProdukController::class, 'barangOptions'])
-        ->name('master-produk.barang-options');
     Route::resource('master-produk', MasterProdukController::class);
+
+    Route::get('master-produk-detail-barang-options', [MasterProdukDetailController::class, 'barangOptions'])
+        ->name('master-produk-detail.barang-options');
+    Route::resource('master-produk-detail', MasterProdukDetailController::class);
+
+    Route::resource('master-uom', MasterUomController::class);
 
     Route::prefix('barang-vendor')
         ->name('barang-vendor.')

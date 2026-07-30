@@ -6,7 +6,8 @@ use App\Models\Barang;
 use App\Models\Keranjang;
 use App\Models\KeranjangDetail;
 use App\Models\MasterProduk;
-use App\Models\MasterProdukGambar;
+use App\Models\MasterProdukDetail;
+use App\Models\MasterProdukDetailGambar;
 use App\Models\Spk;
 use App\Models\SpkGambar;
 use Illuminate\Support\Facades\DB;
@@ -61,12 +62,16 @@ class KeranjangController extends Controller
 
         $produk = MasterProduk::create([
             'nama_produk' => $item->nama_barang,
+        ]);
+
+        $produkDetail = MasterProdukDetail::create([
+            'id_produk' => $produk->id_produk,
             'kode_barang' => $barang->kode_barang,
         ]);
 
         foreach ($item->gambar as $gambar) {
-            MasterProdukGambar::create([
-                'id_produk' => $produk->id_produk,
+            MasterProdukDetailGambar::create([
+                'id_produk_detail' => $produkDetail->id_produk_detail,
                 'nama_file' => basename($gambar->gambar),
                 'path_file' => $gambar->gambar,
             ]);
