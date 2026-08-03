@@ -17,8 +17,13 @@ class SpkController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
+
         $spks = Spk::query()
             ->with(['barang.details.gambars', 'cabang', 'gambars'])
+            ->when(! $user->is_admin, function ($query) use ($user) {
+                $query->where('kode_cabang', $user->kode_cabang);
+            })
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('nama_barang', 'like', "%{$search}%")
@@ -112,9 +117,12 @@ class SpkController extends Controller
         return back()->with('success', 'Status ketersediaan barang berhasil diperbarui.');
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $spk = Spk::with(['barang.details.gambars', 'cabang', 'gambars'])->findOrFail($id);
+
+        $user = $request->user();
+        abort_unless($user->is_admin || $spk->kode_cabang === $user->kode_cabang, 403);
 
         return Inertia::render('Spk/Show', [
             'spk' => $spk,

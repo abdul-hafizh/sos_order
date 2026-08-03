@@ -3,21 +3,18 @@ export default { inheritAttrs: false };
 </script>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import {
     ChartPieIcon,
     ShoppingBagIcon,
-    BuildingOffice2Icon,
     ChevronLeftIcon,
     ChevronRightIcon,
     ChevronDownIcon,
-    UsersIcon,
     ClipboardDocumentListIcon,
     Squares2X2Icon,
     XMarkIcon,
 } from '@heroicons/vue/24/outline';
-import { Separator } from '@/Components/ui/separator'
 
 defineProps({
     show: {

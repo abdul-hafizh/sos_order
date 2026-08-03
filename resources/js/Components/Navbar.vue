@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import {
     ChartPieIcon,
     ShoppingBagIcon,
     ClipboardDocumentListIcon,
     Squares2X2Icon,
+    ShieldCheckIcon,
     ChevronDownIcon,
     Bars3Icon,
     XMarkIcon,
@@ -13,9 +14,12 @@ import {
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 
-defineProps({
+const props = defineProps({
     user: Object,
 });
+
+const isHoUser = computed(() => props.user?.kode_cabang === 'HO');
+const isAdmin = computed(() => !!props.user?.is_admin);
 
 const mobileMenuOpen = ref(false);
 const masterDataMobileOpen = ref(false);
@@ -76,6 +80,7 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
 
                         <!-- Barang -->
                         <Link
+                            v-if="isAdmin"
                             :href="route('barang.index')"
                             class="px-3.5 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1.5"
                             :class="isActive('barang.index') || route().current('barang.*') ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
@@ -85,7 +90,7 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                         </Link>
 
                         <!-- Master Data Dropdown -->
-                        <Dropdown align="left" width="48">
+                        <Dropdown v-if="isAdmin" align="left" width="48">
                             <template #trigger>
                                 <button
                                     class="px-3.5 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1.5 cursor-pointer"
@@ -110,6 +115,17 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                                 </div>
                             </template>
                         </Dropdown>
+
+                        <!-- Admin HO -->
+                        <Link
+                            v-if="isHoUser"
+                            :href="route('admin-ho.index')"
+                            class="px-3.5 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1.5"
+                            :class="isActive('admin-ho.index') ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                        >
+                            <ShieldCheckIcon class="w-4 h-4" />
+                            <span>Admin HO</span>
+                        </Link>
                     </div>
                 </div>
 
@@ -168,6 +184,7 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                 </Link>
 
                 <Link
+                    v-if="isAdmin"
                     :href="route('barang.index')"
                     @click="mobileMenuOpen = false"
                     class="block px-3 py-2 rounded-md text-base font-medium"
@@ -177,7 +194,7 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                 </Link>
 
                 <!-- Mobile Master Data Group -->
-                <div>
+                <div v-if="isAdmin">
                     <button
                         @click="masterDataMobileOpen = !masterDataMobileOpen"
                         class="w-full flex items-center justify-between px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-slate-100"
@@ -199,6 +216,16 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                         </Link>
                     </div>
                 </div>
+
+                <Link
+                    v-if="isHoUser"
+                    :href="route('admin-ho.index')"
+                    @click="mobileMenuOpen = false"
+                    class="block px-3 py-2 rounded-md text-base font-medium"
+                    :class="isActive('admin-ho.index') ? 'bg-slate-800 text-white' : 'text-slate-700 hover:bg-slate-100'"
+                >
+                    Admin HO
+                </Link>
             </div>
         </Transition>
     </nav>

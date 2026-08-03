@@ -10,9 +10,12 @@ use App\Models\MasterProdukDetail;
 use App\Models\MasterProdukDetailGambar;
 use App\Models\Spk;
 use App\Models\SpkGambar;
+use App\Models\User;
+use App\Libraries\SendTelegram;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class KeranjangController extends Controller
@@ -220,7 +223,9 @@ class KeranjangController extends Controller
                 ->with('error', 'Keranjang masih kosong.');
         }
 
-        DB::transaction(function () use ($items, $keranjang) {
+        $barangBaruItems = collect();
+
+        DB::transaction(function () use ($items, $keranjang, &$barangBaruItems) {
             $user = auth()->user();
 
             foreach ($items as $item) {
@@ -274,6 +279,14 @@ class KeranjangController extends Controller
                         'gambar' => $gambar->gambar,
                     ]);
                 }
+
+                if ($item->tipe_item === 'barang_baru') {
+                    $barangBaruItems->push([
+                        'nama_barang' => $item->nama_barang,
+                        'qty' => $item->qty,
+                        'satuan' => $item->satuan,
+                    ]);
+                }
             }
 
             $keranjang->details()->delete();
@@ -283,9 +296,47 @@ class KeranjangController extends Controller
             ]);
         });
 
+        if ($barangBaruItems->isNotEmpty()) {
+            $this->notifyAdminBarangBaru($barangBaruItems, auth()->user());
+        }
+
         return redirect()
             ->route('dashboard')
             ->with('success', 'Pesanan berhasil disimpan ke SPK.');
+    }
+
+    private function notifyAdminBarangBaru($items, $requester)
+    {
+        $admins = User::where('kode_cabang', 'HO')
+            ->where('is_admin', 1)
+            ->whereNotNull('telegram_chat_id')
+            ->where('telegram_chat_id', '!=', '')
+            ->get();
+
+        if ($admins->isEmpty()) {
+            return;
+        }
+
+        $daftarBarang = $items->map(function ($item, $index) {
+            $no = $index + 1;
+            $satuan = $item['satuan'] ?: '';
+
+            return "{$no}. {$item['nama_barang']} — {$item['qty']} {$satuan}";
+        })->implode("\n");
+
+        $message = "<b>PERMINTAAN BARANG BARU</b>\n\n";
+        $message .= "Cabang <b>{$requester->kode_cabang}</b> ({$requester->nama_user}) baru saja mengajukan permintaan barang baru:\n\n";
+        $message .= "{$daftarBarang}\n\n";
+        $message .= "Tanggal: <b>" . now()->format('d-m-Y H:i') . "</b>\n\n";
+        $message .= "<i>Mohon segera ditindaklanjuti di menu SPK.</i>";
+
+        foreach ($admins as $admin) {
+            try {
+                SendTelegram::sendMessage($admin->telegram_chat_id, $message);
+            } catch (\Exception $e) {
+                Log::error("Gagal mengirim notifikasi Telegram barang baru ke admin '{$admin->user}': " . $e->getMessage());
+            }
+        }
     }
 
     public function destroy($id)

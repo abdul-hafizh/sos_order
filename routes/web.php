@@ -20,6 +20,7 @@ use App\Http\Controllers\MasterKarakterController;
 use App\Http\Controllers\MasterProdukController;
 use App\Http\Controllers\MasterProdukDetailController;
 use App\Http\Controllers\MasterUomController;
+use App\Http\Controllers\AdminHoController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -59,64 +60,72 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/spk/{id}/buat-master-barang', [SpkController::class, 'buatMasterBarang'])->name('spk.buatMasterBarang');
     Route::put('/spk/{id}/ketersediaan', [SpkController::class, 'updateKetersediaan'])->name('spk.updateKetersediaan');
 
-    Route::get('/procure', fn() => Inertia::render('Procure'))->name('procure');
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    Route::middleware('ho.user')->group(function () {
+        Route::get('/admin-ho', [AdminHoController::class, 'index'])->name('admin-ho.index');
+        Route::put('/admin-ho/{user}/toggle', [AdminHoController::class, 'toggle'])->name('admin-ho.toggle');
+        Route::put('/admin-ho/{user}/telegram', [AdminHoController::class, 'updateTelegram'])->name('admin-ho.updateTelegram');
+    });
 
-    Route::resource('produk', ProdukController::class);
-    Route::resource('divisi', DivisiController::class);
-    Route::resource('vendor', VendorController::class);
-    Route::resource('barang', BarangController::class);
-    Route::resource('master-barang', MasterBarangController::class);
+    Route::middleware('admin.ho')->group(function () {
+        Route::get('/procure', fn() => Inertia::render('Procure'))->name('procure');
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
-    Route::resource('master-tipe', MasterTipeController::class);
-    Route::resource('master-satuan', MasterSatuanController::class);
-    Route::resource('master-berat', MasterBeratController::class);
-    Route::resource('master-ukuran', MasterUkuranController::class);
-    Route::resource('master-warna', MasterWarnaController::class);
-    Route::resource('master-karakter', MasterKarakterController::class);
+        Route::resource('produk', ProdukController::class);
+        Route::resource('divisi', DivisiController::class);
+        Route::resource('vendor', VendorController::class);
+        Route::resource('barang', BarangController::class);
+        Route::resource('master-barang', MasterBarangController::class);
 
-    Route::resource('master-produk', MasterProdukController::class);
+        Route::resource('master-tipe', MasterTipeController::class);
+        Route::resource('master-satuan', MasterSatuanController::class);
+        Route::resource('master-berat', MasterBeratController::class);
+        Route::resource('master-ukuran', MasterUkuranController::class);
+        Route::resource('master-warna', MasterWarnaController::class);
+        Route::resource('master-karakter', MasterKarakterController::class);
 
-    Route::get('master-produk-detail-barang-options', [MasterProdukDetailController::class, 'barangOptions'])
-        ->name('master-produk-detail.barang-options');
-    Route::resource('master-produk-detail', MasterProdukDetailController::class);
+        Route::resource('master-produk', MasterProdukController::class);
 
-    Route::resource('master-uom', MasterUomController::class);
+        Route::get('master-produk-detail-barang-options', [MasterProdukDetailController::class, 'barangOptions'])
+            ->name('master-produk-detail.barang-options');
+        Route::resource('master-produk-detail', MasterProdukDetailController::class);
 
-    Route::prefix('barang-vendor')
-        ->name('barang-vendor.')
-        ->group(function () {
+        Route::resource('master-uom', MasterUomController::class);
 
-            Route::get('/vendor-list', [BarangVendorController::class, 'vendorList'])
-                ->name('vendor-list');
+        Route::prefix('barang-vendor')
+            ->name('barang-vendor.')
+            ->group(function () {
 
-            Route::get('/{kode_barang}', [BarangVendorController::class, 'index'])
-                ->name('index');
+                Route::get('/vendor-list', [BarangVendorController::class, 'vendorList'])
+                    ->name('vendor-list');
 
-            Route::post('/', [BarangVendorController::class, 'store'])
-                ->name('store');
+                Route::get('/{kode_barang}', [BarangVendorController::class, 'index'])
+                    ->name('index');
 
-            Route::put('/{id_barang_vendor}', [BarangVendorController::class, 'update'])
-                ->name('update');
+                Route::post('/', [BarangVendorController::class, 'store'])
+                    ->name('store');
 
-            Route::delete('/{id_barang_vendor}', [BarangVendorController::class, 'destroy'])
-                ->name('destroy');
+                Route::put('/{id_barang_vendor}', [BarangVendorController::class, 'update'])
+                    ->name('update');
+
+                Route::delete('/{id_barang_vendor}', [BarangVendorController::class, 'destroy'])
+                    ->name('destroy');
+            });
+
+        Route::prefix('category')->name('category.')->group(function () {
+
+            Route::get('/list', [CategoryController::class, 'list'])
+                ->name('list');
+
+            Route::get('/search', [CategoryController::class, 'search'])
+                ->name('search');
+
+            Route::get('/{categorycode}', [CategoryController::class, 'show'])
+                ->name('show');
+
         });
-        
-    Route::prefix('category')->name('category.')->group(function () {
-
-        Route::get('/list', [CategoryController::class, 'list'])
-            ->name('list');
-
-        Route::get('/search', [CategoryController::class, 'search'])
-            ->name('search');
-
-        Route::get('/{categorycode}', [CategoryController::class, 'show'])
-            ->name('show');
-
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
