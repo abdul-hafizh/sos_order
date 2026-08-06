@@ -55,8 +55,8 @@ class BarangController extends Controller
     {
         $like = "%{$keyword}%";
 
-        $query->orWhere('nama_barang', 'like', $like)
-            ->orWhere('kode_barang', 'like', $like)
+        $query->orWhere('t_barang.nama_barang', 'like', $like)
+            ->orWhere('t_barang.kode_barang', 'like', $like)
             ->orWhereHas('produk', function ($qp) use ($like) {
                 $qp->whereHas('produk', fn($q2) => $q2->where('nama_produk', 'like', $like))
                     ->orWhereHas('tipe', fn($q2) => $q2->where('nama', 'like', $like))
@@ -91,7 +91,21 @@ class BarangController extends Controller
 
     public function dashboard(Request $request)
     {
-        $barangs = Barang::with(['details', 'produk.gambars'])
+        $barangs = Barang::query()
+            ->select('t_barang.*')
+            ->leftJoin('master_produk_detail', 'master_produk_detail.kode_barang', '=', 't_barang.kode_barang')
+            ->with([
+                'details',
+                'produk.gambars',
+                'produk.produk',
+                'produk.tipe',
+                'produk.satuan',
+                'produk.berat',
+                'produk.ukuran',
+                'produk.warna',
+                'produk.karakter',
+                'produk.uom',
+            ])
             ->when($request->filled('search'), function ($query) use ($request) {
                 $keywords = preg_split('/[\s,]+/', $request->search);
 
@@ -111,12 +125,14 @@ class BarangController extends Controller
             // Filter berdasarkan kategori
             ->when($request->filled('category_code'), function ($query) use ($request) {
                 $query->where(
-                    'category_code',
+                    't_barang.category_code',
                     $request->category_code
                 );
             })
 
-            ->orderByDesc('id_barang')
+            // Barang dengan data master_produk_detail terbaru tampil paling atas
+            ->orderByDesc('master_produk_detail.created_at')
+            ->orderByDesc('t_barang.id_barang')
             ->paginate(12)
             ->withQueryString();
 
@@ -161,6 +177,7 @@ class BarangController extends Controller
             ],
         ]);
     }
+    
     public function searchByImage(Request $request)
     {
         $file = $request->file('image');

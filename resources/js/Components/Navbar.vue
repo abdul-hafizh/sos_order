@@ -18,7 +18,7 @@ const props = defineProps({
     user: Object,
 });
 
-const isHoUser = computed(() => props.user?.kode_cabang === 'HO');
+const isHoUser = computed(() => props.user?.kode_cabang === 'GSOS');
 const isAdmin = computed(() => !!props.user?.is_admin);
 
 const mobileMenuOpen = ref(false);
@@ -116,7 +116,7 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                             </template>
                         </Dropdown>
 
-                        <!-- Admin HO -->
+                        <!-- Admin GSOS -->
                         <Link
                             v-if="isHoUser"
                             :href="route('admin-ho.index')"
@@ -124,7 +124,7 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                             :class="isActive('admin-ho.index') ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
                         >
                             <ShieldCheckIcon class="w-4 h-4" />
-                            <span>Admin HO</span>
+                            <span>Admin GSOS</span>
                         </Link>
                     </div>
                 </div>
@@ -224,7 +224,7 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
                     class="block px-3 py-2 rounded-md text-base font-medium"
                     :class="isActive('admin-ho.index') ? 'bg-slate-800 text-white' : 'text-slate-700 hover:bg-slate-100'"
                 >
-                    Admin HO
+                    Admin GSOS
                 </Link>
             </div>
         </Transition>

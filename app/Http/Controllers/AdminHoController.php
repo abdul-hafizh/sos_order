@@ -11,7 +11,7 @@ class AdminHoController extends Controller
     public function index()
     {
         return Inertia::render('AdminHo/Index', [
-            'users' => User::where('kode_cabang', 'HO')
+            'users' => User::where('kode_cabang', 'GSOS')
                 ->orderBy('nama_user')
                 ->get(['id', 'user', 'nama_user', 'email', 'is_admin', 'telegram_chat_id']),
         ]);
@@ -19,23 +19,23 @@ class AdminHoController extends Controller
 
     public function toggle(Request $request, User $user)
     {
-        abort_unless($user->kode_cabang === 'HO', 403, 'User bukan bagian dari HO.');
+        abort_unless($user->kode_cabang === 'GSOS', 403, 'User bukan bagian dari GSOS.');
 
         if ($user->is_admin) {
             $user->update(['is_admin' => 0]);
 
-            return redirect()->back()->with('success', "Admin HO {$user->nama_user} dinonaktifkan.");
+            return redirect()->back()->with('success', "Admin GSOS {$user->nama_user} dinonaktifkan.");
         }
 
-        User::where('kode_cabang', 'HO')->update(['is_admin' => 0]);
+        User::where('kode_cabang', 'GSOS')->update(['is_admin' => 0]);
         $user->update(['is_admin' => 1]);
 
-        return redirect()->back()->with('success', "{$user->nama_user} sekarang menjadi Admin HO.");
+        return redirect()->back()->with('success', "{$user->nama_user} sekarang menjadi Admin GSOS.");
     }
 
     public function updateTelegram(Request $request, User $user)
     {
-        abort_unless($user->kode_cabang === 'HO', 403, 'User bukan bagian dari HO.');
+        abort_unless($user->kode_cabang === 'GSOS', 403, 'User bukan bagian dari GSOS.');
 
         $validated = $request->validate([
             'telegram_chat_id' => 'nullable|string|max:255',

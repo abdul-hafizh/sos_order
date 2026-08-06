@@ -12,7 +12,7 @@ class EnsureIsAdminHo
     {
         if (! $request->user()?->is_admin) {
             return redirect()->route('dashboard')
-                ->with('error', 'Halaman ini hanya bisa diakses oleh Admin HO.');
+                ->with('error', 'Halaman ini hanya bisa diakses oleh Admin GSOS.');
         }
 
         return $next($request);

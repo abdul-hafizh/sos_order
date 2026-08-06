@@ -10,9 +10,9 @@ class EnsureIsHoUser
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()?->kode_cabang !== 'HO') {
+        if ($request->user()?->kode_cabang !== 'GSOS') {
             return redirect()->route('dashboard')
-                ->with('error', 'Halaman ini hanya bisa diakses oleh user Head Office (HO).');
+                ->with('error', 'Halaman ini hanya bisa diakses oleh user GSOS.');
         }
 
         return $next($request);

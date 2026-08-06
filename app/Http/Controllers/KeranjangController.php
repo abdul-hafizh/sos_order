@@ -307,7 +307,7 @@ class KeranjangController extends Controller
 
     private function notifyAdminBarangBaru($items, $requester)
     {
-        $admins = User::where('kode_cabang', 'HO')
+        $admins = User::where('kode_cabang', 'GSOS')
             ->where('is_admin', 1)
             ->whereNotNull('telegram_chat_id')
             ->where('telegram_chat_id', '!=', '')

@@ -31,7 +31,7 @@ const props = defineProps({
 const toggleAdmin = (user) => {
     const confirmMessage = user.is_admin
         ? `Cabut hak admin dari ${user.nama_user}?`
-        : `Jadikan ${user.nama_user} sebagai Admin HO? Admin HO sebelumnya (jika ada) akan otomatis dicabut.`;
+        : `Jadikan ${user.nama_user} sebagai Admin GSOS? Admin GSOS sebelumnya (jika ada) akan otomatis dicabut.`;
 
     if (!confirm(confirmMessage)) return;
 
@@ -56,14 +56,14 @@ const updateTelegram = (user, telegramChatId) => {
 </script>
 
 <template>
-    <Head title="Admin HO" />
+    <Head title="Admin GSOS" />
     <AuthenticatedLayout>
         <template #header>
             <div class="flex-col">
                 <label class="font-semibold text-xl text-gray-800 leading-tight">
-                    Admin HO
+                    Admin GSOS
                 </label>
-                <p class="text-sm text-gray-400">Master | Admin HO</p>
+                <p class="text-sm text-gray-400">Master | Admin GSOS</p>
             </div>
         </template>
 
@@ -84,11 +84,11 @@ const updateTelegram = (user, telegramChatId) => {
 
                     <ItemContent class="w-full">
                         <ItemTitle class="text-lg font-semibold">
-                            Kelola Admin HO
+                            Kelola Admin GSOS
                         </ItemTitle>
                         <ItemDescription class="text-sm">
-                            Tentukan satu user Head Office (HO) sebagai admin.
-                            Hanya boleh ada 1 admin HO aktif dalam waktu
+                            Tentukan satu user GSOS sebagai admin.
+                            Hanya boleh ada 1 admin GSOS aktif dalam waktu
                             bersamaan.
                         </ItemDescription>
                     </ItemContent>
@@ -136,7 +136,7 @@ const updateTelegram = (user, telegramChatId) => {
                                     v-if="user.is_admin"
                                     class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full"
                                 >
-                                    Admin HO
+                                    Admin GSOS
                                 </span>
                                 <span v-else class="text-xs text-gray-400"
                                     >Bukan Admin</span
@@ -166,7 +166,7 @@ const updateTelegram = (user, telegramChatId) => {
                                 colspan="7"
                                 class="text-center text-gray-400 py-8"
                             >
-                                Tidak ada user dengan kode_cabang HO.
+                                Tidak ada user dengan kode_cabang GSOS.
                             </TableCell>
                         </TableRow>
                     </TableBody>

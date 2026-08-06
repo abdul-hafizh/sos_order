@@ -53,6 +53,21 @@ const openPreview = (item, index = 0) => {
 const uploadInput = ref(null);
 const selectedItem = ref(null);
 
+const detailModalData = ref(null);
+
+const openDetail = (barang) => {
+    detailModalData.value = barang;
+};
+
+const closeDetail = () => {
+    detailModalData.value = null;
+};
+
+const getDetailImages = (barang) => {
+    const images = barang?.produk?.gambars || [];
+    return images.map((g) => `/storage/${g.path_file}`);
+};
+
 const openUpload = (item) => {
     selectedItem.value = item;
     uploadInput.value.click();
@@ -661,16 +676,27 @@ const pesanSekarang = () => {
                                         </div>
 
                                         <!-- Tombol Aksi -->
-                                        <Button
-                                            type="button"
-                                            class="w-full mt-3 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs h-9 shadow-sm"
-                                            @click="addToCart(barang)"
-                                        >
-                                            <ShoppingCart
-                                                class="w-3.5 h-3.5 mr-1.5"
-                                            />
-                                            Tambah
-                                        </Button>
+                                        <div class="flex gap-2 mt-3">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                class="flex-1 rounded-xl text-xs h-9 shadow-sm"
+                                                @click="openDetail(barang)"
+                                            >
+                                                Detail
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                class="flex-1 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs h-9 shadow-sm"
+                                                @click="addToCart(barang)"
+                                            >
+                                                <ShoppingCart
+                                                    class="w-3.5 h-3.5 mr-1.5"
+                                                />
+                                                Tambah
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -970,6 +996,189 @@ const pesanSekarang = () => {
             </div>
         </div>
     </AuthenticatedLayout>
+
+    <div
+        v-if="detailModalData"
+        class="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6"
+        @click="closeDetail"
+    >
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+            @click.stop
+        >
+            <div
+                class="flex items-center justify-between px-6 py-5 border-b bg-gray-50"
+            >
+                <div>
+                    <h3 class="text-xl font-bold text-gray-900">
+                        {{ detailModalData.nama_barang }}
+                    </h3>
+
+                    <p class="text-sm text-gray-500 mt-1">
+                        Kode Barang:
+                        <span class="font-semibold">{{
+                            detailModalData.kode_barang
+                        }}</span>
+                    </p>
+                </div>
+
+                <button
+                    class="w-10 h-10 rounded-xl hover:bg-gray-200 transition flex items-center justify-center"
+                    @click="closeDetail"
+                >
+                    <X class="w-5 h-5" />
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                <!-- Galeri Foto -->
+                <div
+                    v-if="getDetailImages(detailModalData).length"
+                    class="grid grid-cols-3 md:grid-cols-4 gap-3"
+                >
+                    <div
+                        v-for="(img, index) in getDetailImages(
+                            detailModalData,
+                        )"
+                        :key="index"
+                        class="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 aspect-square"
+                    >
+                        <img
+                            :src="img"
+                            class="w-full h-full object-contain"
+                        />
+                    </div>
+                </div>
+
+                <div
+                    v-else
+                    class="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-8 flex flex-col items-center text-gray-400"
+                >
+                    <Package class="w-8 h-8 mb-2" />
+                    <span class="text-xs">Belum ada foto produk</span>
+                </div>
+
+                <!-- Detail Produk -->
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Nama Produk
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{
+                                detailModalData.produk?.produk?.nama_produk ??
+                                "-"
+                            }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Tipe
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{ detailModalData.produk?.tipe?.nama ?? "-" }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Satuan
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{ detailModalData.produk?.satuan?.nama ?? "-" }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Berat
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{ detailModalData.produk?.berat?.nama ?? "-" }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Ukuran
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{ detailModalData.produk?.ukuran?.nama ?? "-" }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Warna
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{ detailModalData.produk?.warna?.nama ?? "-" }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Karakter
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{
+                                detailModalData.produk?.karakter?.nama ?? "-"
+                            }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            UOM
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{
+                                detailModalData.produk?.uom?.nama_uom ?? "-"
+                            }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Harga Jual
+                        </p>
+                        <p class="font-semibold text-blue-600">
+                            {{ rupiah(detailModalData.harga_jual) }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                            Stok
+                        </p>
+                        <p class="font-semibold text-gray-900">
+                            {{ detailModalData.stok ?? 0 }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="border-t bg-white px-6 py-5 flex justify-end gap-3"
+            >
+                <Button variant="outline" class="rounded-2xl" @click="closeDetail">
+                    Tutup
+                </Button>
+
+                <Button
+                    class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl"
+                    @click="
+                        addToCart(detailModalData);
+                        closeDetail();
+                    "
+                >
+                    <ShoppingCart class="w-4 h-4 mr-2" />
+                    Tambah ke Keranjang
+                </Button>
+            </div>
+        </div>
+    </div>
 
     <div
         v-if="previewModalData.item"
