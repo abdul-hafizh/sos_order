@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Barang;
+use App\Models\Category;
 use App\Models\MasterBerat;
 use App\Models\MasterKarakter;
 use App\Models\MasterProduk;
@@ -23,7 +24,7 @@ class MasterProdukDetailController extends Controller
 {
     public function index(Request $request)
     {
-        $produkDetail = MasterProdukDetail::with(['produk', 'tipe', 'satuan', 'berat', 'ukuran', 'warna', 'karakter', 'uom', 'gambars', 'barang'])
+        $produkDetail = MasterProdukDetail::with(['produk', 'category', 'tipe', 'satuan', 'berat', 'ukuran', 'warna', 'karakter', 'uom', 'gambars', 'barang'])
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('kode_barang', 'like', "%{$search}%")
@@ -40,6 +41,7 @@ class MasterProdukDetailController extends Controller
             'produkDetail' => $produkDetail,
             'filters' => $request->only(['search', 'per_page']),
             'list_produk' => MasterProduk::orderBy('nama_produk')->get(['id_produk', 'nama_produk', 'deskripsi']),
+            'list_kategori' => Category::orderBy('categoryname')->get(['categorycode', 'categoryname']),
             'list_tipe' => MasterTipe::orderBy('nama')->get(),
             'list_satuan' => MasterSatuan::orderBy('nama')->get(),
             'list_berat' => MasterBerat::orderBy('nama')->get(),
@@ -75,6 +77,7 @@ class MasterProdukDetailController extends Controller
     {
         $validated = $request->validate([
             'id_produk' => 'required|integer|exists:master_produk,id_produk',
+            'category_id' => 'nullable|string|max:20|exists:m_category,categorycode',
             'kode_barang' => 'nullable|string|max:50|unique:master_produk_detail,kode_barang',
             'id_tipe' => 'nullable|integer|exists:master_tipe,id_tipe',
             'id_satuan' => 'nullable|integer|exists:master_satuan,id_satuan',
@@ -113,6 +116,7 @@ class MasterProdukDetailController extends Controller
 
         $validated = $request->validate([
             'id_produk' => 'required|integer|exists:master_produk,id_produk',
+            'category_id' => 'nullable|string|max:20|exists:m_category,categorycode',
             'kode_barang' => [
                 'nullable',
                 'string',

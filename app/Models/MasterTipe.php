@@ -28,4 +28,9 @@ class MasterTipe extends Model
             $model->updated_by = Auth::id();
         });
     }
+
+    public function details()
+    {
+        return $this->hasMany(MasterProdukDetail::class, 'id_tipe', 'id_tipe');
+    }
 }

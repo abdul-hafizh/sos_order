@@ -7,6 +7,7 @@ import { Button } from "@/Components/ui/button";
 import {
     Search,
     ImagePlus,
+    ImageOff,
     Package,
     Layers,
     UploadCloud,
@@ -14,10 +15,14 @@ import {
     ShoppingCart,
     Plus,
     Building2,
+    Minus,
+    ArrowLeft,
 } from "lucide-vue-next";
 
 const props = defineProps({
-    barangs: Object,
+    tipeList: Object,
+    selectedTipe: Object,
+    variantList: Object,
     categories: {
         type: Array,
         default: () => [],
@@ -53,19 +58,73 @@ const openPreview = (item, index = 0) => {
 const uploadInput = ref(null);
 const selectedItem = ref(null);
 
-const detailModalData = ref(null);
+// Qty per varian (master_produk_detail) di grid flat level-2, keyed oleh id_produk_detail
+const variantQty = ref({});
 
-const openDetail = (barang) => {
-    detailModalData.value = barang;
+watch(
+    () => props.variantList,
+    (list) => {
+        variantQty.value = Object.fromEntries(
+            (list?.data || []).map((d) => [d.id_produk_detail, 0]),
+        );
+    },
+    { immediate: true },
+);
+
+const changeVariantQty = (detail, delta) => {
+    const current = variantQty.value[detail.id_produk_detail] || 0;
+    variantQty.value[detail.id_produk_detail] = Math.max(0, current + delta);
 };
 
-const closeDetail = () => {
-    detailModalData.value = null;
+const variantLabel = (detail) => {
+    const attrs = [
+        detail.warna?.nama,
+        detail.ukuran?.nama,
+        detail.berat?.nama,
+        detail.karakter?.nama,
+    ]
+        .filter(Boolean)
+        .join(" - ");
+    const produkNama = detail.produk?.nama_produk;
+
+    if (produkNama && attrs) return `${produkNama} - ${attrs}`;
+
+    return (
+        produkNama ||
+        attrs ||
+        detail.barang?.nama_barang ||
+        `Varian #${detail.id_produk_detail}`
+    );
 };
 
-const getDetailImages = (barang) => {
-    const images = barang?.produk?.gambars || [];
-    return images.map((g) => `/storage/${g.path_file}`);
+const totalSelectedQty = computed(() =>
+    Object.values(variantQty.value).reduce((sum, q) => sum + (q || 0), 0),
+);
+
+const bulkAddForm = useForm({
+    items: [],
+});
+
+const addSelectedVariantsToCart = () => {
+    const items = (props.variantList?.data || [])
+        .filter(
+            (d) => d.barang && (variantQty.value[d.id_produk_detail] || 0) > 0,
+        )
+        .map((d) => ({
+            id_barang: d.barang.id_barang,
+            qty: variantQty.value[d.id_produk_detail],
+        }));
+
+    if (!items.length) return;
+
+    bulkAddForm.items = items;
+
+    bulkAddForm.post(route("keranjang.storeBarangBanyak"), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showCart.value = true;
+        },
+    });
 };
 
 const openUpload = (item) => {
@@ -77,15 +136,33 @@ const cartItems = computed(() => props.keranjang?.items || []);
 const totalCartQty = computed(() => props.keranjang?.total_baris || 0);
 const showCart = ref(false);
 
+// Kelompokkan item keranjang berdasarkan induk produknya (master_produk)
+const groupedCartItems = computed(() => {
+    const groups = new Map();
+
+    for (const item of cartItems.value) {
+        const parent = item.barang?.produk?.produk;
+        const key = parent ? `produk-${parent.id_produk}` : `item-${item.id_keranjang_detail}`;
+        const label = parent
+            ? parent.nama_produk
+            : item.tipe_item === "barang_baru"
+              ? "Permintaan Barang Baru"
+              : item.nama_barang;
+
+        if (!groups.has(key)) {
+            groups.set(key, { key, label, items: [] });
+        }
+
+        groups.get(key).items.push(item);
+    }
+
+    return Array.from(groups.values());
+});
+
 const currentUser = computed(() => usePage().props.auth?.user);
 const currentCabangName = computed(
     () => currentUser.value?.cabang?.cabang_nama || currentUser.value?.kode_cabang,
 );
-
-const addCartForm = useForm({
-    id_barang: null,
-    qty: 1,
-});
 
 const uploadGambar = (e) => {
     const files = e.target.files;
@@ -158,15 +235,6 @@ const barangBaruForm = useForm({
     image_path: "",
 });
 
-const addToCart = (barang) => {
-    addCartForm.id_barang = barang.id_barang;
-    addCartForm.qty = 1;
-
-    addCartForm.post(route("keranjang.storeBarang"), {
-        preserveScroll: true,
-    });
-};
-
 const addBarangBaruToCart = () => {
     const urlParams = new URLSearchParams(window.location.search);
 
@@ -210,6 +278,7 @@ const resetSearch = () => {
     params.value.search = "";
     appliedSearch.value = params.value.search;
     params.value.category_code = "";
+    params.value.id_tipe = "";
 
     router.get(
         route("dashboard"),
@@ -263,6 +332,7 @@ const searchByImage = () => {
 const params = ref({
     search: props.filters?.search || "",
     category_code: props.filters?.category_code || "",
+    id_tipe: props.filters?.id_tipe || "",
     image_keyword: props.image_keyword || "",
     image_path: props.image_path || "",
 });
@@ -278,8 +348,8 @@ const searchData = () => {
         route("dashboard"),
         {
             search: params.value.search,
-            per_page: params.value.per_page,
             category_code: params.value.category_code,
+            id_tipe: params.value.id_tipe,
         },
         {
             preserveState: true,
@@ -296,10 +366,42 @@ const selectCategory = (categoryCode) => {
         {
             search: params.value.search,
             category_code: categoryCode,
+            id_tipe: params.value.id_tipe,
         },
         {
             preserveState: true,
             replace: true,
+        },
+    );
+};
+
+const openTipe = (tipe) => {
+    params.value.id_tipe = tipe.id_tipe;
+
+    router.get(
+        route("dashboard"),
+        {
+            id_tipe: tipe.id_tipe,
+            search: params.value.search,
+            category_code: params.value.category_code,
+        },
+        {
+            preserveState: true,
+        },
+    );
+};
+
+const backToTipe = () => {
+    params.value.id_tipe = "";
+
+    router.get(
+        route("dashboard"),
+        {
+            search: params.value.search,
+            category_code: params.value.category_code,
+        },
+        {
+            preserveState: true,
         },
     );
 };
@@ -312,9 +414,12 @@ const rupiah = (value) => {
     }).format(value || 0);
 };
 
-const getFirstImage = (barang) => {
-    const images = barang.produk?.gambars || [];
-    return images[0]?.path_file ? `/storage/${images[0].path_file}` : null;
+const getTipeImage = (tipe) => {
+    for (const detail of tipe.details || []) {
+        const path = detail.gambars?.[0]?.path_file;
+        if (path) return `/storage/${path}`;
+    }
+    return null;
 };
 
 const handleImage = (event) => {
@@ -353,10 +458,10 @@ const pesanSekarang = () => {
     <Head title="Dashboard" />
 
     <AuthenticatedLayout>
-        <div class="py-7 px-6 w-full">
+        <div class="py-7 px-6 w-full" :class="selectedTipe && 'pb-24'">
             <button
                 type="button"
-                class="fixed bottom-6 right-6 z-40 bg-blue-700 text-white rounded-full shadow-xl p-4 hover:bg-blue-800"
+                class="fixed bottom-6 right-6 z-50 bg-blue-700 text-white rounded-full shadow-xl p-4 hover:bg-blue-800"
                 @click="showCart = true"
             >
                 <ShoppingCart class="w-6 h-6" />
@@ -611,171 +716,269 @@ const pesanSekarang = () => {
                             </div>
                         </aside>
 
-                        <!-- Area Card Barang / Empty State -->
+                        <!-- Area Card Tipe / Varian / Empty State -->
                         <div class="flex-grow w-full">
-                            <!-- Kondisi: Ada Barang (Grid ala Marketplace) -->
+                            <!-- Breadcrumb tipe terpilih -->
                             <div
-                                v-if="barangs?.data?.length"
-                                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4"
+                                v-if="selectedTipe"
+                                class="flex items-center gap-3 mb-4"
                             >
-                                <div
-                                    v-for="barang in barangs.data"
-                                    :key="barang.id_barang"
-                                    class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group flex flex-col"
+                                <button
+                                    type="button"
+                                    class="flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:underline shrink-0"
+                                    @click="backToTipe"
                                 >
-                                    <!-- Gambar & Badge Kode Barang -->
-                                    <div
-                                        class="aspect-square bg-gray-100 relative overflow-hidden"
-                                    >
-                                        <img
-                                            v-if="getFirstImage(barang)"
-                                            :src="getFirstImage(barang)"
-                                            class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                        />
-
-                                        <div
-                                            v-else
-                                            class="w-full h-full flex items-center justify-center text-gray-400"
-                                        >
-                                            <Package class="w-10 h-10" />
-                                        </div>
-
-                                        <div
-                                            class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-[10px] font-semibold shadow-sm"
-                                        >
-                                            {{ barang.kode_barang }}
-                                        </div>
-                                    </div>
-
-                                    <!-- Informasi Detail Card -->
-                                    <div class="p-3 flex flex-col flex-grow">
-                                        <h4
-                                            class="font-semibold text-gray-900 text-sm line-clamp-2 min-h-[40px]"
-                                        >
-                                            {{ barang.nama_barang }}
-                                        </h4>
-
-                                        <div
-                                            class="text-blue-600 font-bold text-base mt-1.5"
-                                        >
-                                            {{ rupiah(barang.harga_jual) }}
-                                        </div>
-
-                                        <!-- Stok & Satuan -->
-                                        <div
-                                            class="flex items-center justify-between text-xs text-gray-500 mt-auto pt-1.5"
-                                        >
-                                            <span
-                                                >Stok:
-                                                {{ barang.stok ?? 0 }}</span
-                                            >
-                                            <span
-                                                class="font-medium text-gray-700"
-                                                >{{ barang.satuan }}</span
-                                            >
-                                        </div>
-
-                                        <!-- Tombol Aksi -->
-                                        <div class="flex gap-2 mt-3">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                class="flex-1 rounded-xl text-xs h-9 shadow-sm"
-                                                @click="openDetail(barang)"
-                                            >
-                                                Detail
-                                            </Button>
-
-                                            <Button
-                                                type="button"
-                                                class="flex-1 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs h-9 shadow-sm"
-                                                @click="addToCart(barang)"
-                                            >
-                                                <ShoppingCart
-                                                    class="w-3.5 h-3.5 mr-1.5"
-                                                />
-                                                Tambah
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Kondisi: Barang Tidak Ditemukan (Empty State) -->
-                            <div
-                                v-else
-                                class="bg-white rounded-3xl border border-red-100 shadow-sm p-8 md:p-12 text-center"
-                            >
-                                <Package
-                                    class="w-16 h-16 mx-auto text-red-300 mb-4"
-                                />
-
-                                <h3 class="font-bold text-red-700 text-lg">
-                                    Barang tidak ditemukan
+                                    <ArrowLeft class="w-4 h-4" />
+                                    Kembali ke Tipe
+                                </button>
+                                <span class="text-gray-300">/</span>
+                                <h3 class="font-bold text-gray-900 truncate">
+                                    {{ selectedTipe.nama }}
                                 </h3>
-
-                                <p
-                                    class="text-sm text-gray-500 mt-2 max-w-md mx-auto"
-                                >
-                                    Barang yang Anda cari tidak tersedia di
-                                    database.
-                                </p>
-
-                                <p
-                                    v-if="image_keyword"
-                                    class="text-sm text-gray-400 mt-2"
-                                >
-                                    Keyword dari gambar:
-                                    <span class="font-semibold text-gray-700">{{
-                                        image_keyword
-                                    }}</span>
-                                </p>
-
-                                <p
-                                    class="text-sm text-blue-600 mt-3 max-w-md mx-auto bg-blue-50 p-3 rounded-2xl border border-blue-100"
-                                >
-                                    Anda tetap dapat membuat permintaan barang
-                                    baru. Gambar yang diupload akan disimpan
-                                    sebagai referensi untuk admin.
-                                </p>
-
-                                <div
-                                    class="flex flex-col md:flex-row justify-center gap-3 mt-6"
-                                >
-                                    <Button
-                                        type="button"
-                                        class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl shadow-sm"
-                                        @click="addBarangBaruToCart"
-                                        :disabled="barangBaruForm.processing"
-                                    >
-                                        <Plus class="w-4 h-4 mr-2" />
-                                        {{
-                                            barangBaruForm.processing
-                                                ? "Memasukkan..."
-                                                : "Masukkan sebagai Barang Baru"
-                                        }}
-                                    </Button>
-
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        class="rounded-2xl"
-                                        @click="resetSearch"
-                                    >
-                                        Reset
-                                    </Button>
-                                </div>
                             </div>
+
+                            <!-- Level 1: Grid Tipe -->
+                            <template v-if="!selectedTipe">
+                                <div
+                                    v-if="tipeList?.data?.length"
+                                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4"
+                                >
+                                    <button
+                                        type="button"
+                                        v-for="tipe in tipeList.data"
+                                        :key="tipe.id_tipe"
+                                        class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group flex flex-col text-left"
+                                        @click="openTipe(tipe)"
+                                    >
+                                        <!-- Gambar & Badge Jumlah Varian -->
+                                        <div
+                                            class="aspect-square bg-gray-100 relative overflow-hidden"
+                                        >
+                                            <img
+                                                v-if="getTipeImage(tipe)"
+                                                :src="getTipeImage(tipe)"
+                                                class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                            />
+
+                                            <div
+                                                v-else
+                                                class="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"
+                                            >
+                                                <ImageOff class="w-8 h-8" />
+                                                <span class="text-[10px] font-medium">
+                                                    Belum ada gambar
+                                                </span>
+                                            </div>
+
+                                            <div
+                                                class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-[10px] font-semibold shadow-sm"
+                                            >
+                                                {{ tipe.details?.length || 0 }} varian
+                                            </div>
+                                        </div>
+
+                                        <!-- Informasi Detail Card -->
+                                        <div class="p-3 flex flex-col flex-grow">
+                                            <h4
+                                                class="font-semibold text-gray-900 text-sm line-clamp-2 min-h-[40px]"
+                                            >
+                                                {{ tipe.nama }}
+                                            </h4>
+
+                                            <div
+                                                class="mt-3 w-full text-center rounded-xl text-xs h-9 flex items-center justify-center border border-blue-100 text-blue-700 font-medium group-hover:bg-blue-50 transition"
+                                            >
+                                                Lihat Varian
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                <!-- Kondisi: Tipe Tidak Ditemukan (Empty State) -->
+                                <div
+                                    v-else
+                                    class="bg-white rounded-3xl border border-red-100 shadow-sm p-8 md:p-12 text-center"
+                                >
+                                    <Package
+                                        class="w-16 h-16 mx-auto text-red-300 mb-4"
+                                    />
+
+                                    <h3 class="font-bold text-red-700 text-lg">
+                                        Tipe tidak ditemukan
+                                    </h3>
+
+                                    <p
+                                        class="text-sm text-gray-500 mt-2 max-w-md mx-auto"
+                                    >
+                                        Tidak ada tipe produk yang cocok dengan
+                                        pencarian Anda.
+                                    </p>
+
+                                    <p
+                                        v-if="image_keyword"
+                                        class="text-sm text-gray-400 mt-2"
+                                    >
+                                        Keyword dari gambar:
+                                        <span class="font-semibold text-gray-700">{{
+                                            image_keyword
+                                        }}</span>
+                                    </p>
+
+                                    <p
+                                        class="text-sm text-blue-600 mt-3 max-w-md mx-auto bg-blue-50 p-3 rounded-2xl border border-blue-100"
+                                    >
+                                        Anda tetap dapat membuat permintaan barang
+                                        baru. Gambar yang diupload akan disimpan
+                                        sebagai referensi untuk admin.
+                                    </p>
+
+                                    <div
+                                        class="flex flex-col md:flex-row justify-center gap-3 mt-6"
+                                    >
+                                        <Button
+                                            type="button"
+                                            class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl shadow-sm"
+                                            @click="addBarangBaruToCart"
+                                            :disabled="barangBaruForm.processing"
+                                        >
+                                            <Plus class="w-4 h-4 mr-2" />
+                                            {{
+                                                barangBaruForm.processing
+                                                    ? "Memasukkan..."
+                                                    : "Masukkan sebagai Barang Baru"
+                                            }}
+                                        </Button>
+
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="rounded-2xl"
+                                            @click="resetSearch"
+                                        >
+                                            Reset
+                                        </Button>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Level 2: Flat Grid Varian dari tipe terpilih -->
+                            <template v-else>
+                                <div
+                                    v-if="variantList?.data?.length"
+                                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4"
+                                >
+                                    <div
+                                        v-for="detail in variantList.data"
+                                        :key="detail.id_produk_detail"
+                                        class="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col transition"
+                                        :class="
+                                            (variantQty[detail.id_produk_detail] || 0) > 0
+                                                ? 'border-blue-600 ring-1 ring-blue-600'
+                                                : 'border-gray-100'
+                                        "
+                                    >
+                                        <div
+                                            class="aspect-square bg-gray-100 relative overflow-hidden"
+                                        >
+                                            <img
+                                                v-if="detail.gambars?.[0]"
+                                                :src="`/storage/${detail.gambars[0].path_file}`"
+                                                class="w-full h-full object-cover"
+                                            />
+
+                                            <div
+                                                v-else
+                                                class="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"
+                                            >
+                                                <ImageOff class="w-8 h-8" />
+                                                <span class="text-[10px] font-medium">
+                                                    Belum ada gambar
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div class="p-3 flex flex-col flex-grow">
+                                            <h4
+                                                class="font-semibold text-gray-900 text-sm line-clamp-2 min-h-[40px]"
+                                            >
+                                                {{ variantLabel(detail) }}
+                                            </h4>
+
+                                            <div
+                                                class="text-blue-600 font-bold text-sm mt-1.5"
+                                            >
+                                                {{ rupiah(detail.barang?.harga_jual) }}
+                                            </div>
+
+                                            <div class="text-xs text-gray-500 mt-0.5">
+                                                Stok: {{ detail.barang?.stok ?? 0 }}
+                                            </div>
+
+                                            <div
+                                                class="flex items-center justify-between gap-1 mt-3"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    class="w-8 h-8 rounded-lg border flex items-center justify-center shrink-0"
+                                                    @click="changeVariantQty(detail, -1)"
+                                                >
+                                                    <Minus class="w-3.5 h-3.5" />
+                                                </button>
+
+                                                <span class="text-sm font-semibold">
+                                                    {{
+                                                        variantQty[detail.id_produk_detail] ||
+                                                        0
+                                                    }}
+                                                </span>
+
+                                                <button
+                                                    type="button"
+                                                    class="w-8 h-8 rounded-lg border flex items-center justify-center shrink-0"
+                                                    @click="changeVariantQty(detail, 1)"
+                                                >
+                                                    <Plus class="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Kondisi: Varian Tidak Ditemukan (Empty State) -->
+                                <div
+                                    v-else
+                                    class="bg-white rounded-3xl border border-red-100 shadow-sm p-8 md:p-12 text-center"
+                                >
+                                    <Package
+                                        class="w-16 h-16 mx-auto text-red-300 mb-4"
+                                    />
+
+                                    <h3 class="font-bold text-red-700 text-lg">
+                                        Varian tidak ditemukan
+                                    </h3>
+
+                                    <p
+                                        class="text-sm text-gray-500 mt-2 max-w-md mx-auto"
+                                    >
+                                        Tidak ada varian yang cocok untuk tipe ini.
+                                    </p>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
                     <!-- Pagination Links -->
                     <div
-                        v-if="barangs?.links?.length"
+                        v-if="
+                            (!selectedTipe && tipeList?.links?.length) ||
+                            (selectedTipe && variantList?.links?.length)
+                        "
                         class="mt-8 flex flex-wrap gap-2 justify-center"
                     >
                         <Link
-                            v-for="(link, index) in barangs.links"
+                            v-for="(link, index) in selectedTipe
+                                ? variantList.links
+                                : tipeList.links"
                             :key="index"
                             :href="link.url ?? '#'"
                         >
@@ -790,6 +993,32 @@ const pesanSekarang = () => {
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Bar bawah: tambah varian terpilih ke keranjang (hanya level 2) -->
+        <div
+            v-if="selectedTipe"
+            class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t shadow-2xl px-6 py-4 flex items-center justify-between gap-4 pr-24 md:pr-28"
+        >
+            <div class="text-sm text-gray-600">
+                <span class="font-semibold text-gray-900">
+                    {{ totalSelectedQty }}
+                </span>
+                pcs dipilih
+            </div>
+
+            <Button
+                class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl px-6"
+                :disabled="totalSelectedQty === 0 || bulkAddForm.processing"
+                @click="addSelectedVariantsToCart"
+            >
+                <ShoppingCart class="w-4 h-4 mr-2" />
+                {{
+                    bulkAddForm.processing
+                        ? "Memasukkan..."
+                        : "Tambah ke Keranjang"
+                }}
+            </Button>
         </div>
 
         <div
@@ -818,7 +1047,7 @@ const pesanSekarang = () => {
                     </button>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                <div class="flex-1 overflow-y-auto p-5 space-y-6">
                     <div
                         v-if="!cartItems.length"
                         class="text-center py-12 text-gray-400"
@@ -828,157 +1057,170 @@ const pesanSekarang = () => {
                     </div>
 
                     <div
-                        v-for="item in cartItems"
-                        :key="item.id_keranjang_detail"
-                        class="border rounded-2xl p-4"
+                        v-for="group in groupedCartItems"
+                        :key="group.key"
+                        class="space-y-3"
                     >
-                        <div class="flex gap-3">
-                            <div>
-                                <div
-                                    v-if="item.tipe_item === 'barang_baru'"
-                                    class="relative w-16 h-16 cursor-pointer"
-                                    @click="openUpload(item)"
-                                >
-                                    <template v-if="item.gambar?.length">
-                                        <img
-                                            v-for="(
-                                                img, index
-                                            ) in item.gambar.slice(0, 3)"
-                                            :key="img.id_gambar"
-                                            :src="`/storage/${img.gambar}`"
-                                            class="absolute w-14 h-14 object-contain rounded-xl border-2 border-white shadow-lg transition-all duration-200 hover:z-50"
-                                            :style="{
-                                                left: `${index * 6}px`,
-                                                top: `${index * 4}px`,
-                                                zIndex: index + 1,
-                                                transform: `rotate(${(index - 1) * 4}deg)`,
-                                            }"
-                                            @click.stop="
-                                                openPreview(item, index)
-                                            "
-                                        />
+                        <h4
+                            class="font-bold text-sm text-gray-900 px-1 flex items-center gap-2"
+                        >
+                            <Package class="w-4 h-4 text-blue-600 shrink-0" />
+                            {{ group.label }}
+                        </h4>
+
+                        <div
+                            v-for="item in group.items"
+                            :key="item.id_keranjang_detail"
+                            class="border rounded-2xl p-4"
+                        >
+                            <div class="flex gap-3">
+                                <div>
+                                    <div
+                                        v-if="item.tipe_item === 'barang_baru'"
+                                        class="relative w-16 h-16 cursor-pointer"
+                                        @click="openUpload(item)"
+                                    >
+                                        <template v-if="item.gambar?.length">
+                                            <img
+                                                v-for="(
+                                                    img, index
+                                                ) in item.gambar.slice(0, 3)"
+                                                :key="img.id_gambar"
+                                                :src="`/storage/${img.gambar}`"
+                                                class="absolute w-14 h-14 object-contain rounded-xl border-2 border-white shadow-lg transition-all duration-200 hover:z-50"
+                                                :style="{
+                                                    left: `${index * 6}px`,
+                                                    top: `${index * 4}px`,
+                                                    zIndex: index + 1,
+                                                    transform: `rotate(${(index - 1) * 4}deg)`,
+                                                }"
+                                                @click.stop="
+                                                    openPreview(item, index)
+                                                "
+                                            />
+
+                                            <div
+                                                v-if="item.gambar.length > 3"
+                                                class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center border-2 border-white shadow"
+                                            >
+                                                +{{ item.gambar.length - 3 }}
+                                            </div>
+                                        </template>
 
                                         <div
-                                            v-if="item.gambar.length > 3"
-                                            class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center border-2 border-white shadow"
+                                            v-else
+                                            class="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center border"
                                         >
-                                            +{{ item.gambar.length - 3 }}
+                                            <ImagePlus
+                                                class="w-6 h-6 text-gray-400"
+                                            />
                                         </div>
-                                    </template>
+                                    </div>
 
                                     <div
                                         v-else
-                                        class="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center border"
+                                        class="w-16 h-16 rounded-xl overflow-hidden border bg-gray-50 flex items-center justify-center pointer-events-none"
                                     >
-                                        <ImagePlus
+                                        <img
+                                            v-if="getCartImage(item)"
+                                            :src="getCartImage(item)"
+                                            class="w-full h-full object-cover"
+                                        />
+                                        <Package
+                                            v-else
                                             class="w-6 h-6 text-gray-400"
                                         />
                                     </div>
                                 </div>
-
-                                <div
-                                    v-else
-                                    class="w-16 h-16 rounded-xl overflow-hidden border bg-gray-50 flex items-center justify-center pointer-events-none"
-                                >
-                                    <img
-                                        v-if="getCartImage(item)"
-                                        :src="getCartImage(item)"
-                                        class="w-full h-full object-cover"
-                                    />
-                                    <Package
-                                        v-else
-                                        class="w-6 h-6 text-gray-400"
-                                    />
-                                </div>
-                            </div>
-                            <div class="flex-1">
-                                <Input
-                                    v-if="item.tipe_item === 'barang_baru'"
-                                    :model-value="item.nama_barang"
-                                    class="h-9 text-sm font-semibold"
-                                    @change="
-                                        updateNamaBarangBaru(
-                                            item,
-                                            $event.target.value,
-                                        )
-                                    "
-                                />
-
-                                <h4
-                                    v-else
-                                    class="font-semibold text-sm text-gray-900"
-                                >
-                                    {{ item.nama_barang }}
-                                </h4>
-
-                                <p
-                                    class="text-xs mt-1"
-                                    :class="
-                                        item.tipe_item === 'barang_baru'
-                                            ? 'text-orange-600'
-                                            : 'text-blue-600'
-                                    "
-                                >
-                                    {{
-                                        item.tipe_item === "barang_baru"
-                                            ? "Permintaan barang baru"
-                                            : "Barang tersedia"
-                                    }}
-                                </p>
-
-                                <div class="flex items-center gap-2 mt-3">
-                                    <button
-                                        type="button"
-                                        class="w-8 h-8 rounded-lg border"
-                                        @click="
-                                            updateCartQty(
-                                                item,
-                                                Number(item.qty) - 1,
-                                            )
-                                        "
-                                    >
-                                        -
-                                    </button>
-
+                                <div class="flex-1">
                                     <Input
-                                        :model-value="item.qty"
-                                        type="number"
-                                        min="1"
-                                        class="w-16 h-8 text-center"
+                                        v-if="item.tipe_item === 'barang_baru'"
+                                        :model-value="item.nama_barang"
+                                        class="h-9 text-sm font-semibold"
                                         @change="
-                                            updateCartQty(
+                                            updateNamaBarangBaru(
                                                 item,
-                                                Number($event.target.value),
+                                                $event.target.value,
                                             )
                                         "
                                     />
 
-                                    <button
-                                        type="button"
-                                        class="w-8 h-8 rounded-lg border"
-                                        @click="
-                                            updateCartQty(
-                                                item,
-                                                Number(item.qty) + 1,
-                                            )
+                                    <h4
+                                        v-else
+                                        class="font-semibold text-sm text-gray-900"
+                                    >
+                                        {{ item.nama_barang }}
+                                    </h4>
+
+                                    <p
+                                        class="text-xs mt-1"
+                                        :class="
+                                            item.tipe_item === 'barang_baru'
+                                                ? 'text-orange-600'
+                                                : 'text-blue-600'
                                         "
                                     >
-                                        +
-                                    </button>
+                                        {{
+                                            item.tipe_item === "barang_baru"
+                                                ? "Permintaan barang baru"
+                                                : "Barang tersedia"
+                                        }}
+                                    </p>
 
-                                    <span class="text-xs text-gray-400">
-                                        {{ item.satuan }}
-                                    </span>
+                                    <div class="flex items-center gap-2 mt-3">
+                                        <button
+                                            type="button"
+                                            class="w-8 h-8 rounded-lg border"
+                                            @click="
+                                                updateCartQty(
+                                                    item,
+                                                    Number(item.qty) - 1,
+                                                )
+                                            "
+                                        >
+                                            -
+                                        </button>
+
+                                        <Input
+                                            :model-value="item.qty"
+                                            type="number"
+                                            min="1"
+                                            class="w-16 h-8 text-center"
+                                            @change="
+                                                updateCartQty(
+                                                    item,
+                                                    Number($event.target.value),
+                                                )
+                                            "
+                                        />
+
+                                        <button
+                                            type="button"
+                                            class="w-8 h-8 rounded-lg border"
+                                            @click="
+                                                updateCartQty(
+                                                    item,
+                                                    Number(item.qty) + 1,
+                                                )
+                                            "
+                                        >
+                                            +
+                                        </button>
+
+                                        <span class="text-xs text-gray-400">
+                                            {{ item.satuan }}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <button
-                                type="button"
-                                class="text-red-500 self-start mt-1"
-                                @click="removeCartItem(item)"
-                            >
-                                <X class="w-5 h-5" />
-                            </button>
+                                <button
+                                    type="button"
+                                    class="text-red-500 self-start mt-1"
+                                    @click="removeCartItem(item)"
+                                >
+                                    <X class="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -996,189 +1238,6 @@ const pesanSekarang = () => {
             </div>
         </div>
     </AuthenticatedLayout>
-
-    <div
-        v-if="detailModalData"
-        class="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6"
-        @click="closeDetail"
-    >
-        <div
-            class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
-            @click.stop
-        >
-            <div
-                class="flex items-center justify-between px-6 py-5 border-b bg-gray-50"
-            >
-                <div>
-                    <h3 class="text-xl font-bold text-gray-900">
-                        {{ detailModalData.nama_barang }}
-                    </h3>
-
-                    <p class="text-sm text-gray-500 mt-1">
-                        Kode Barang:
-                        <span class="font-semibold">{{
-                            detailModalData.kode_barang
-                        }}</span>
-                    </p>
-                </div>
-
-                <button
-                    class="w-10 h-10 rounded-xl hover:bg-gray-200 transition flex items-center justify-center"
-                    @click="closeDetail"
-                >
-                    <X class="w-5 h-5" />
-                </button>
-            </div>
-
-            <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                <!-- Galeri Foto -->
-                <div
-                    v-if="getDetailImages(detailModalData).length"
-                    class="grid grid-cols-3 md:grid-cols-4 gap-3"
-                >
-                    <div
-                        v-for="(img, index) in getDetailImages(
-                            detailModalData,
-                        )"
-                        :key="index"
-                        class="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 aspect-square"
-                    >
-                        <img
-                            :src="img"
-                            class="w-full h-full object-contain"
-                        />
-                    </div>
-                </div>
-
-                <div
-                    v-else
-                    class="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-8 flex flex-col items-center text-gray-400"
-                >
-                    <Package class="w-8 h-8 mb-2" />
-                    <span class="text-xs">Belum ada foto produk</span>
-                </div>
-
-                <!-- Detail Produk -->
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Nama Produk
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{
-                                detailModalData.produk?.produk?.nama_produk ??
-                                "-"
-                            }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Tipe
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{ detailModalData.produk?.tipe?.nama ?? "-" }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Satuan
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{ detailModalData.produk?.satuan?.nama ?? "-" }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Berat
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{ detailModalData.produk?.berat?.nama ?? "-" }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Ukuran
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{ detailModalData.produk?.ukuran?.nama ?? "-" }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Warna
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{ detailModalData.produk?.warna?.nama ?? "-" }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Karakter
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{
-                                detailModalData.produk?.karakter?.nama ?? "-"
-                            }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            UOM
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{
-                                detailModalData.produk?.uom?.nama_uom ?? "-"
-                            }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Harga Jual
-                        </p>
-                        <p class="font-semibold text-blue-600">
-                            {{ rupiah(detailModalData.harga_jual) }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                            Stok
-                        </p>
-                        <p class="font-semibold text-gray-900">
-                            {{ detailModalData.stok ?? 0 }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div
-                class="border-t bg-white px-6 py-5 flex justify-end gap-3"
-            >
-                <Button variant="outline" class="rounded-2xl" @click="closeDetail">
-                    Tutup
-                </Button>
-
-                <Button
-                    class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl"
-                    @click="
-                        addToCart(detailModalData);
-                        closeDetail();
-                    "
-                >
-                    <ShoppingCart class="w-4 h-4 mr-2" />
-                    Tambah ke Keranjang
-                </Button>
-            </div>
-        </div>
-    </div>
 
     <div
         v-if="previewModalData.item"

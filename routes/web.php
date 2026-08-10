@@ -37,6 +37,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/keranjang/barang', [KeranjangController::class, 'storeBarang'])
         ->name('keranjang.storeBarang');
+    Route::post('/keranjang/barang-banyak', [KeranjangController::class, 'storeBarangBanyak'])
+        ->name('keranjang.storeBarangBanyak');
     Route::post('/keranjang/barang-baru', [KeranjangController::class, 'storeBarangBaru'])
         ->name('keranjang.storeBarangBaru');
     Route::put('/keranjang/{id}/qty', [KeranjangController::class, 'updateQty'])

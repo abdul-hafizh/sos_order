@@ -12,6 +12,7 @@ class MasterProdukDetail extends Model
 
     protected $fillable = [
         'id_produk',
+        'category_id',
         'kode_barang',
         'id_tipe',
         'id_satuan',
@@ -40,6 +41,11 @@ class MasterProdukDetail extends Model
     public function produk()
     {
         return $this->belongsTo(MasterProduk::class, 'id_produk', 'id_produk');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class, 'category_id', 'categorycode');
     }
 
     public function tipe()

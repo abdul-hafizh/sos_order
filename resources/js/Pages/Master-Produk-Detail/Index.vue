@@ -20,6 +20,7 @@ const props = defineProps({
     produkDetail: Object,
     filters: Object,
     list_produk: Array,
+    list_kategori: Array,
     list_tipe: Array,
     list_satuan: Array,
     list_berat: Array,
@@ -45,6 +46,7 @@ watch(params, () => {
 
 const form = useForm({
     id_produk: null,
+    category_id: null,
     kode_barang: null,
     id_tipe: null,
     id_satuan: null,
@@ -146,6 +148,7 @@ const openModal = (item = null) => {
 
     if (item) {
         form.id_produk = item.id_produk;
+        form.category_id = item.category_id;
         form.kode_barang = item.kode_barang;
         form.id_tipe = item.id_tipe;
         form.id_satuan = item.id_satuan;
@@ -294,6 +297,7 @@ const destroyProdukDetail = () => {
                             </td>
                             <td class="p-3">
                                 <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                                    <div><span class="text-gray-400">Kategori:</span> {{ item.category?.categoryname || '-' }}</div>
                                     <div><span class="text-gray-400">Type:</span> {{ item.tipe?.nama || '-' }}</div>
                                     <div><span class="text-gray-400">Satuan:</span> {{ item.satuan?.nama || '-' }}</div>
                                     <div><span class="text-gray-400">Berat:</span> {{ item.berat?.nama || '-' }}</div>
@@ -341,6 +345,7 @@ const destroyProdukDetail = () => {
                     </div>
 
                     <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600 mt-3 border-t pt-2">
+                        <div><span class="text-gray-400">Kategori:</span> {{ item.category?.categoryname || '-' }}</div>
                         <div><span class="text-gray-400">Type:</span> {{ item.tipe?.nama || '-' }}</div>
                         <div><span class="text-gray-400">Satuan:</span> {{ item.satuan?.nama || '-' }}</div>
                         <div><span class="text-gray-400">Berat:</span> {{ item.berat?.nama || '-' }}</div>
@@ -379,6 +384,12 @@ const destroyProdukDetail = () => {
                             <label class="text-xs text-gray-400 font-medium">Produk</label>
                             <SearchSelect v-model="form.id_produk" :options="list_produk" value-key="id_produk" label-key="nama_produk" placeholder="Pilih Produk..." />
                             <p v-if="form.errors.id_produk" class="text-sm text-red-500 mt-1">{{ form.errors.id_produk }}</p>
+                        </div>
+
+                        <div>
+                            <label class="text-xs text-gray-400 font-medium">Kategori</label>
+                            <SearchSelect v-model="form.category_id" :options="list_kategori" value-key="categorycode" label-key="categoryname" placeholder="Pilih Kategori..." />
+                            <p v-if="form.errors.category_id" class="text-sm text-red-500 mt-1">{{ form.errors.category_id }}</p>
                         </div>
 
                         <div>

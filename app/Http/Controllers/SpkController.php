@@ -20,7 +20,7 @@ class SpkController extends Controller
         $user = $request->user();
 
         $spks = Spk::query()
-            ->with(['barang.details.gambars', 'cabang', 'gambars'])
+            ->with(['barang.produk.gambars', 'cabang', 'gambars'])
             ->when(! $user->is_admin, function ($query) use ($user) {
                 $query->where('kode_cabang', $user->kode_cabang);
             })

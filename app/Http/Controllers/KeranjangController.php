@@ -86,6 +86,28 @@ class KeranjangController extends Controller
         return $barang;
     }
 
+    private function addBarangToKeranjang(Keranjang $keranjang, Barang $barang, int $qty): void
+    {
+        $detail = KeranjangDetail::where('id_keranjang', $keranjang->id_keranjang)
+            ->where('id_barang', $barang->id_barang)
+            ->where('tipe_item', 'barang_tersedia')
+            ->first();
+
+        if ($detail) {
+            $detail->increment('qty', $qty);
+            return;
+        }
+
+        KeranjangDetail::create([
+            'id_keranjang' => $keranjang->id_keranjang,
+            'id_barang' => $barang->id_barang,
+            'nama_barang' => $barang->nama_barang,
+            'qty' => $qty,
+            'satuan' => $barang->satuan,
+            'tipe_item' => 'barang_tersedia',
+        ]);
+    }
+
     public function storeBarang(Request $request)
     {
         $validated = $request->validate([
@@ -94,32 +116,40 @@ class KeranjangController extends Controller
             'catatan' => 'nullable|string',
         ]);
 
-        $barang = Barang::findOrFail($validated['id_barang']);
-
         $keranjang = $this->getDraftKeranjang();
 
-        $detail = KeranjangDetail::where('id_keranjang', $keranjang->id_keranjang)
-            ->where('id_barang', $barang->id_barang)
-            ->where('tipe_item', 'barang_tersedia')
-            ->first();
-
-        if ($detail) {
-            $detail->increment('qty', $validated['qty']);
-        } else {
-            KeranjangDetail::create([
-                'id_keranjang' => $keranjang->id_keranjang,
-                'id_barang' => $barang->id_barang,
-                'nama_barang' => $barang->nama_barang,
-                'qty' => $validated['qty'],
-                'satuan' => $barang->satuan,
-                'tipe_item' => 'barang_tersedia',
-                'catatan' => $validated['catatan'] ?? null,
-            ]);
-        }
+        $this->addBarangToKeranjang(
+            $keranjang,
+            Barang::findOrFail($validated['id_barang']),
+            $validated['qty']
+        );
 
         return redirect()
             ->route('dashboard')
             ->with('success', 'Barang berhasil dimasukkan ke keranjang.');
+    }
+
+    public function storeBarangBanyak(Request $request)
+    {
+        $validated = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.id_barang' => 'required|integer|exists:t_barang,id_barang',
+            'items.*.qty' => 'required|integer|min:1',
+        ]);
+
+        $keranjang = $this->getDraftKeranjang();
+
+        DB::transaction(function () use ($validated, $keranjang) {
+            foreach ($validated['items'] as $row) {
+                $this->addBarangToKeranjang(
+                    $keranjang,
+                    Barang::findOrFail($row['id_barang']),
+                    $row['qty']
+                );
+            }
+        });
+
+        return back()->with('success', 'Varian berhasil dimasukkan ke keranjang.');
     }
 
     public function storeBarangBaru(Request $request)

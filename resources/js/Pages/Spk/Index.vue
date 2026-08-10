@@ -191,7 +191,7 @@ const getSpkImages = (spk) => {
         return [`/storage/${spk.gambar_permintaan}`];
     }
 
-    const images = spk.barang?.details?.flatMap((detail) => detail.gambars || []) || [];
+    const images = spk.barang?.produk?.gambars || [];
 
     return images
         .filter((img) => img.path_file)
@@ -545,72 +545,83 @@ const submitMasterBarang = () => {
                     </button>
                 </div>
 
-                <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <p class="text-gray-400">Kode Barang</p>
-                        <p class="font-semibold">{{ selectedSpk.kode_barang || '-' }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Kode Cabang</p>
-                        <p class="font-semibold">{{ selectedSpk.kode_cabang || '-' }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Qty</p>
-                        <p class="font-semibold">{{ selectedSpk.qty }} {{ selectedSpk.satuan || '' }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Qty Diterima</p>
-                        <p class="font-semibold">{{ selectedSpk.qty_cabang_terima || 0 }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Harga Beli</p>
-                        <p class="font-semibold">{{ rupiah(selectedSpk.harga_beli) }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Harga Jual</p>
-                        <p class="font-semibold">{{ rupiah(selectedSpk.harga_jual) }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Tanggal Validasi</p>
-                        <p class="font-semibold">{{ formatDate(selectedSpk.tgl_validasi) }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Tanggal Kirim</p>
-                        <p class="font-semibold">{{ formatDate(selectedSpk.tgl_kirim_barang) }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Tanggal Terima</p>
-                        <p class="font-semibold">{{ formatDate(selectedSpk.tgl_terima_barang) }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-gray-400">Keterangan</p>
-                        <p class="font-semibold">{{ selectedSpk.keterangan || '-' }}</p>
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <p class="text-gray-400 mb-2">Gambar Produk</p>
-
-                        <div v-if="getSpkImages(selectedSpk).length" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="p-5 flex flex-col md:flex-row gap-5 text-sm">
+                    <!-- Gambar Produk: kiri atas -->
+                    <div class="w-full md:w-56 shrink-0 space-y-2">
+                        <div class="w-full aspect-square rounded-2xl overflow-hidden border bg-gray-50 flex items-center justify-center">
                             <img
-                                v-for="(image, index) in getSpkImages(selectedSpk)"
-                                :key="index"
-                                :src="image"
-                                class="w-full h-28 object-cover rounded-2xl border"
+                                v-if="getSpkImages(selectedSpk).length"
+                                :src="getSpkImages(selectedSpk)[0]"
+                                class="w-full h-full object-cover"
+                                alt="Gambar Produk"
                             />
+                            <Package v-else class="w-10 h-10 text-gray-300" />
                         </div>
 
-                        <p v-else class="text-sm text-gray-400">
-                            Tidak ada gambar.
-                        </p>
+                        <div
+                            v-if="getSpkImages(selectedSpk).length > 1"
+                            class="grid grid-cols-4 gap-2"
+                        >
+                            <img
+                                v-for="(image, index) in getSpkImages(selectedSpk).slice(1, 5)"
+                                :key="index"
+                                :src="image"
+                                class="w-full aspect-square object-cover rounded-lg border"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Info: kanan, bertumpuk ke bawah -->
+                    <div class="flex-1 space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Kode Barang</span>
+                            <span class="font-semibold text-right">{{ selectedSpk.kode_barang || '-' }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Kode Cabang</span>
+                            <span class="font-semibold text-right">{{ selectedSpk.kode_cabang || '-' }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Qty</span>
+                            <span class="font-semibold text-right">{{ selectedSpk.qty }} {{ selectedSpk.satuan || '' }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Qty Diterima</span>
+                            <span class="font-semibold text-right">{{ selectedSpk.qty_cabang_terima || 0 }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Harga Beli</span>
+                            <span class="font-semibold text-right">{{ rupiah(selectedSpk.harga_beli) }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Harga Jual</span>
+                            <span class="font-semibold text-right">{{ rupiah(selectedSpk.harga_jual) }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Tanggal Validasi</span>
+                            <span class="font-semibold text-right">{{ formatDate(selectedSpk.tgl_validasi) }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Tanggal Kirim</span>
+                            <span class="font-semibold text-right">{{ formatDate(selectedSpk.tgl_kirim_barang) }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Tanggal Terima</span>
+                            <span class="font-semibold text-right">{{ formatDate(selectedSpk.tgl_terima_barang) }}</span>
+                        </div>
+
+                        <div class="flex items-start justify-between gap-3 pt-3 border-t border-gray-100">
+                            <span class="text-gray-400 shrink-0">Keterangan</span>
+                            <span class="font-semibold text-right">{{ selectedSpk.keterangan || '-' }}</span>
+                        </div>
                     </div>
                 </div>
 

@@ -9,6 +9,7 @@ use App\Models\Keranjang;
 use App\Models\MasterBerat;
 use App\Models\MasterKarakter;
 use App\Models\MasterProduk;
+use App\Models\MasterProdukDetail;
 use App\Models\MasterSatuan;
 use App\Models\MasterTipe;
 use App\Models\MasterUkuran;
@@ -69,6 +70,38 @@ class BarangController extends Controller
             });
     }
 
+    /**
+     * Basis query MasterTipe, dipakai oleh dashboard() untuk grid tipe (level 1).
+     */
+    private function applyTipeKeywordMatch($query, string $keyword): void
+    {
+        $like = "%{$keyword}%";
+
+        $query->orWhere('nama', 'like', $like)
+            ->orWhereHas('details', function ($qd) use ($like) {
+                $qd->whereHas('barang', fn($q2) => $q2->where('nama_barang', 'like', $like)->orWhere('kode_barang', 'like', $like))
+                    ->orWhereHas('produk', fn($q2) => $q2->where('nama_produk', 'like', $like));
+            });
+    }
+
+    /**
+     * Basis query MasterProdukDetail, dipakai oleh dashboard() untuk grid varian
+     * flat (level 2, setelah satu tipe dipilih).
+     */
+    private function applyVariantKeywordMatch($query, string $keyword): void
+    {
+        $like = "%{$keyword}%";
+
+        $query->whereHas('barang', fn($q2) => $q2->where('nama_barang', 'like', $like)->orWhere('kode_barang', 'like', $like))
+            ->orWhereHas('produk', fn($q2) => $q2->where('nama_produk', 'like', $like))
+            ->orWhereHas('satuan', fn($q2) => $q2->where('nama', 'like', $like))
+            ->orWhereHas('warna', fn($q2) => $q2->where('nama', 'like', $like))
+            ->orWhereHas('ukuran', fn($q2) => $q2->where('nama', 'like', $like))
+            ->orWhereHas('berat', fn($q2) => $q2->where('nama', 'like', $like))
+            ->orWhereHas('karakter', fn($q2) => $q2->where('nama', 'like', $like))
+            ->orWhereHas('uom', fn($q2) => $q2->where('nama_uom', 'like', $like));
+    }
+
     public function index(Request $request)
     {
         $barangs = Barang::with(['details', 'category', 'produk.gambars'])
@@ -91,50 +124,67 @@ class BarangController extends Controller
 
     public function dashboard(Request $request)
     {
-        $barangs = Barang::query()
-            ->select('t_barang.*')
-            ->leftJoin('master_produk_detail', 'master_produk_detail.kode_barang', '=', 't_barang.kode_barang')
-            ->with([
-                'details',
-                'produk.gambars',
-                'produk.produk',
-                'produk.tipe',
-                'produk.satuan',
-                'produk.berat',
-                'produk.ukuran',
-                'produk.warna',
-                'produk.karakter',
-                'produk.uom',
-            ])
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $keywords = preg_split('/[\s,]+/', $request->search);
+        $selectedTipe = $request->filled('id_tipe')
+            ? MasterTipe::findOrFail($request->id_tipe)
+            : null;
 
-                $query->where(function ($q) use ($keywords) {
-                    foreach ($keywords as $keyword) {
-                        $keyword = trim($keyword);
+        $tipeList = null;
+        $variantList = null;
 
-                        if ($keyword === '') {
-                            continue;
+        if (!$selectedTipe) {
+            // Level 1: grid tipe yang punya data di master_produk_detail
+            $tipeList = MasterTipe::query()
+                ->whereHas('details.barang')
+                ->with(['details.gambars'])
+                ->when($request->filled('search'), function ($query) use ($request) {
+                    $keywords = preg_split('/[\s,]+/', $request->search);
+
+                    $query->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $keyword) {
+                            $keyword = trim($keyword);
+
+                            if ($keyword === '') {
+                                continue;
+                            }
+
+                            $this->applyTipeKeywordMatch($q, $keyword);
                         }
+                    });
+                })
+                ->when($request->filled('category_code'), function ($query) use ($request) {
+                    $query->whereHas('details.barang', fn($q) => $q->where('category_code', $request->category_code));
+                })
+                ->orderByDesc('created_at')
+                ->paginate(12)
+                ->withQueryString();
+        } else {
+            // Level 2: flat semua varian (master_produk_detail) dari tipe terpilih, lintas induk
+            $variantList = MasterProdukDetail::query()
+                ->where('id_tipe', $selectedTipe->id_tipe)
+                ->whereHas('barang')
+                ->with(['barang', 'gambars', 'produk', 'satuan', 'berat', 'ukuran', 'warna', 'karakter', 'uom'])
+                ->when($request->filled('search'), function ($query) use ($request) {
+                    $keywords = preg_split('/[\s,]+/', $request->search);
 
-                        $this->applyKeywordMatch($q, $keyword);
-                    }
-                });
-            })
+                    $query->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $keyword) {
+                            $keyword = trim($keyword);
 
-            // Filter berdasarkan kategori
-            ->when($request->filled('category_code'), function ($query) use ($request) {
-                $query->where(
-                    't_barang.category_code',
-                    $request->category_code
-                );
-            })
+                            if ($keyword === '') {
+                                continue;
+                            }
 
-            // Barang dengan data master_produk_detail terbaru tampil paling atas
-            ->orderByDesc('master_produk_detail.created_at')
-            ->orderByDesc('t_barang.id_barang')
-            ->paginate(12)
-            ->withQueryString();
+                            $this->applyVariantKeywordMatch($q, $keyword);
+                        }
+                    });
+                })
+                ->when($request->filled('category_code'), function ($query) use ($request) {
+                    $query->whereHas('barang', fn($q) => $q->where('category_code', $request->category_code));
+                })
+                ->orderByDesc('created_at')
+                ->paginate(12)
+                ->withQueryString();
+        }
 
         // Ambil list kategori
         $categories = Category::select([
@@ -146,7 +196,15 @@ class BarangController extends Controller
 
         $keranjang = Keranjang::with([
             'details.gambar',
+            'details.barang.produk.produk',
             'details.barang.produk.gambars',
+            'details.barang.produk.tipe',
+            'details.barang.produk.satuan',
+            'details.barang.produk.berat',
+            'details.barang.produk.ukuran',
+            'details.barang.produk.warna',
+            'details.barang.produk.karakter',
+            'details.barang.produk.uom',
         ])
             ->where('user_id', auth()->id())
             ->where('status', 'draft')
@@ -155,15 +213,18 @@ class BarangController extends Controller
         $cartItems = $keranjang?->details ?? collect();
 
         return Inertia::render('Dashboard', [
-            'barangs' => $barangs,
+            'tipeList' => $tipeList,
+            'selectedTipe' => $selectedTipe,
+            'variantList' => $variantList,
 
             // List kategori
             'categories' => $categories,
 
-            // Search + kategori yang sedang aktif
+            // Search + kategori + tipe yang sedang aktif
             'filters' => $request->only([
                 'search',
                 'category_code',
+                'id_tipe',
             ]),
 
             'image_keyword' => $request->input('image_keyword'),
