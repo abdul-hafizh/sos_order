@@ -44,6 +44,7 @@ const menuItems = [
         children: [
             { name: 'Produk', route: 'master-produk.index' },
             { name: 'Produk Detail', route: 'master-produk-detail.index' },
+            { name: 'Kategori', route: 'master-kategori.index' },
             { name: 'Type', route: 'master-tipe.index' },
             { name: 'Satuan', route: 'master-satuan.index' },
             { name: 'Berat', route: 'master-berat.index' },

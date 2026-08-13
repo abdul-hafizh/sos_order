@@ -58,7 +58,6 @@ const openPreview = (item, index = 0) => {
 const uploadInput = ref(null);
 const selectedItem = ref(null);
 
-// Qty per varian (master_produk_detail) di grid flat level-2, keyed oleh id_produk_detail
 const variantQty = ref({});
 
 watch(
@@ -458,7 +457,7 @@ const pesanSekarang = () => {
     <Head title="Dashboard" />
 
     <AuthenticatedLayout>
-        <div class="py-7 px-6 w-full" :class="selectedTipe && 'pb-24'">
+        <div class="py-3 px-3 w-full" :class="selectedTipe && 'pb-24'">
             <button
                 type="button"
                 class="fixed bottom-6 right-6 z-50 bg-blue-700 text-white rounded-full shadow-xl p-4 hover:bg-blue-800"
@@ -475,11 +474,11 @@ const pesanSekarang = () => {
             </button>
 
             <div
-                class="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-8"
+                class="bg-white rounded-3xl border border-gray-100 shadow-sm p-3 mb-3"
             >
                 <!-- Header Utama -->
-                <div class="flex items-center justify-between gap-3 mb-6">
-                    <div class="flex items-center gap-3">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <div class="flex items-center gap-3 shrink-0">
                         <div class="bg-blue-50 text-blue-600 p-3 rounded-2xl">
                             <Search class="w-6 h-6" />
                         </div>
@@ -495,6 +494,48 @@ const pesanSekarang = () => {
                         </div>
                     </div>
 
+                    <!-- Kategori: strip gambar horizontal di tengah header (desktop) -->
+                    <div
+                        v-if="categories?.length"
+                        class="hidden lg:block flex-1 min-w-0 overflow-x-auto"
+                    >
+                        <div class="flex items-center gap-6 justify-center px-2">
+                            <button
+                                type="button"
+                                v-for="category in categories"
+                                :key="category.code"
+                                @click="selectCategory(category.code)"
+                                class="flex flex-col items-center gap-1 shrink-0 group"
+                            >
+                                <div
+                                    class="w-16 h-16 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition"
+                                    :class="
+                                        selectedCategory === category.code
+                                            ? 'border-blue-600 ring-2 ring-blue-100'
+                                            : 'border-gray-200 group-hover:border-blue-300'
+                                    "
+                                >
+                                    <img
+                                        v-if="category.gambar_url"
+                                        :src="category.gambar_url"
+                                        class="w-full h-full object-cover"
+                                    />
+                                    <Layers v-else class="w-6 h-6 text-gray-300" />
+                                </div>
+                                <span
+                                    class="text-xs font-medium w-20 text-center leading-tight line-clamp-2"
+                                    :class="
+                                        selectedCategory === category.code
+                                            ? 'text-blue-600'
+                                            : 'text-gray-500'
+                                    "
+                                >
+                                    {{ category.name }}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
                     <div
                         v-if="currentCabangName"
                         class="hidden sm:flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-2xl text-sm font-semibold shrink-0"
@@ -504,9 +545,51 @@ const pesanSekarang = () => {
                     </div>
                 </div>
 
+                <!-- Kategori: strip gambar horizontal (mobile & tablet) -->
+                <div
+                    v-if="categories?.length"
+                    class="lg:hidden -mx-3 px-3 mb-3 overflow-x-auto"
+                >
+                    <div class="flex items-center gap-6 w-max px-1">
+                        <button
+                            type="button"
+                            v-for="category in categories"
+                            :key="category.code"
+                            @click="selectCategory(category.code)"
+                            class="flex flex-col items-center gap-1 shrink-0 group"
+                        >
+                            <div
+                                class="w-12 h-12 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition"
+                                :class="
+                                    selectedCategory === category.code
+                                        ? 'border-blue-600 ring-2 ring-blue-100'
+                                        : 'border-gray-200 group-hover:border-blue-300'
+                                "
+                            >
+                                <img
+                                    v-if="category.gambar_url"
+                                    :src="category.gambar_url"
+                                    class="w-full h-full object-cover"
+                                />
+                                <Layers v-else class="w-5 h-5 text-gray-300" />
+                            </div>
+                            <span
+                                class="text-[11px] font-medium max-w-[64px] truncate"
+                                :class="
+                                    selectedCategory === category.code
+                                        ? 'text-blue-600'
+                                        : 'text-gray-500'
+                                "
+                            >
+                                {{ category.name }}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
                 <div
                     v-if="image_keyword"
-                    class="my-5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-2xl px-5 py-3 text-sm"
+                    class="my-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-2xl px-4 py-2.5 text-sm"
                 >
                     Keyword dari gambar:
                     <span class="font-semibold">{{ image_keyword }}</span>
@@ -514,7 +597,7 @@ const pesanSekarang = () => {
 
                 <div
                     v-if="image_keyword"
-                    class="mb-6 bg-white border border-indigo-100 rounded-3xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                    class="mb-3 bg-white border border-indigo-100 rounded-3xl p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                 >
                     <div>
                         <h3 class="font-bold text-gray-900">
@@ -537,13 +620,13 @@ const pesanSekarang = () => {
                         Masukkan Keranjang Hasil Foto
                     </Button>
                 </div>
-                <div class="my-5">
+                <div class="my-2">
                     <!-- Header & Tombol Reset -->
                     <!-- Layout Utama: Sidebar & Area Konten (Horizontal Scroll) -->
-                    <div class="flex flex-col lg:flex-row gap-6 items-start">
+                    <div class="flex flex-col lg:flex-row gap-3 items-start">
                         <!-- Sidebar: Filter (Teks, Gambar) & Kategori -->
                         <aside
-                            class="w-full lg:w-72 bg-gray-50 rounded-3xl border border-gray-100 p-4 h-fit lg:sticky lg:top-6 flex-shrink-0 shadow-sm space-y-5"
+                            class="w-full lg:w-72 bg-gray-50 rounded-3xl border border-gray-100 p-3 h-fit lg:sticky lg:top-6 flex-shrink-0 shadow-sm space-y-3"
                         >
                             <!-- Filter: Berdasarkan Nama / Kode -->
                             <div class="px-2">
@@ -672,7 +755,7 @@ const pesanSekarang = () => {
                                 </p>
                             </form>
 
-                            <div class="px-2 pt-1 border-t border-gray-200/60">
+                            <div class="hidden lg:block px-2 pt-1 border-t border-gray-200/60">
                                 <div
                                     class="flex items-center gap-2 mb-3 mt-4"
                                 >
@@ -739,6 +822,7 @@ const pesanSekarang = () => {
 
                             <!-- Level 1: Grid Tipe -->
                             <template v-if="!selectedTipe">
+                                <hr class="mb-4" />
                                 <div
                                     v-if="tipeList?.data?.length"
                                     class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4"
@@ -973,7 +1057,7 @@ const pesanSekarang = () => {
                             (!selectedTipe && tipeList?.links?.length) ||
                             (selectedTipe && variantList?.links?.length)
                         "
-                        class="mt-8 flex flex-wrap gap-2 justify-center"
+                        class="mt-4 flex flex-wrap gap-2 justify-center"
                     >
                         <Link
                             v-for="(link, index) in selectedTipe

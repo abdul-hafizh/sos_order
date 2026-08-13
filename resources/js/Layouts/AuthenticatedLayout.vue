@@ -31,7 +31,7 @@ watch(() => page.props.flash, (flash) => {
         <Navbar :user="$page.props.auth.user" />
 
         <!-- Redesigned Page Sub-Header -->
-        <header v-if="$slots.header" class="bg-white border-b border-slate-200/80 shadow-xs py-4 md:py-5 px-4 sm:px-6 lg:px-10">
+        <header v-if="$slots.header" class="bg-white border-b border-slate-200/80 shadow-xs py-3 md:py-4 px-3 sm:px-4 lg:px-6">
             <div class="max-w-[1800px] w-full mx-auto flex items-center justify-between">
                 <div class="flex items-center space-x-3">
                     <div class="w-1.5 h-6 bg-blue-600 rounded-full shrink-0"></div>
@@ -43,7 +43,7 @@ watch(() => page.props.flash, (flash) => {
         </header>
 
         <!-- Widened Main Page Content -->
-        <main class="flex-1 p-4 sm:p-6 md:p-8 max-w-[1800px] w-full mx-auto">
+        <main class="flex-1 p-3 sm:p-4 md:p-5 max-w-[1800px] w-full mx-auto">
             <slot />
         </main>
     </div>

@@ -27,6 +27,7 @@ const masterDataMobileOpen = ref(false);
 const masterDataItems = [
     { name: 'Produk', route: 'master-produk.index' },
     { name: 'Produk Detail', route: 'master-produk-detail.index' },
+    { name: 'Kategori', route: 'master-kategori.index' },
     { name: 'Type', route: 'master-tipe.index' },
     { name: 'Satuan', route: 'master-satuan.index' },
     { name: 'Berat', route: 'master-berat.index' },
@@ -43,8 +44,8 @@ const isMasterDataActive = () => masterDataItems.some(item => route().current(it
 
 <template>
     <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-        <div class="max-w-[1800px] w-full mx-auto px-4 sm:px-6 lg:px-10">
-            <div class="flex justify-between h-16">
+        <div class="max-w-[1800px] w-full mx-auto px-3 sm:px-4 lg:px-6">
+            <div class="flex justify-between h-14">
                 
                 <!-- Left Section: Logo & Desktop Navigation Links -->
                 <div class="flex items-center space-x-8">

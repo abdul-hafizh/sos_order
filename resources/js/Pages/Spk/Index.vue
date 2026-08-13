@@ -285,9 +285,9 @@ const submitMasterBarang = () => {
             </div>
         </template>
 
-        <div class="py-7 px-6 w-full">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
+        <div class="py-3 px-3 w-full">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-4">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm text-gray-400">Total SPK</p>
@@ -297,7 +297,7 @@ const submitMasterBarang = () => {
                     </div>
                 </div>
 
-                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
+                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-4">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm text-gray-400">Belum Validasi</p>
@@ -307,7 +307,7 @@ const submitMasterBarang = () => {
                     </div>
                 </div>
 
-                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
+                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-4">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm text-gray-400">Sudah Dikirim</p>
@@ -317,7 +317,7 @@ const submitMasterBarang = () => {
                     </div>
                 </div>
 
-                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
+                <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-4">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm text-gray-400">Sudah Diterima</p>
@@ -328,8 +328,8 @@ const submitMasterBarang = () => {
                 </div>
             </div>
 
-            <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div class="bg-white rounded-3xl border border-gray-100 shadow-sm p-3 mb-3">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
                     <div class="md:col-span-2 relative">
                         <Search class="w-5 h-5 absolute left-4 top-3.5 text-gray-400" />
                         <Input
@@ -365,11 +365,11 @@ const submitMasterBarang = () => {
                 </div>
             </div>
 
-            <div v-if="rows.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div v-if="rows.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div
                     v-for="spk in rows"
                     :key="spk.id_po"
-                    class="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition p-5 flex flex-col justify-between"
+                    class="bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition p-3 flex flex-col justify-between"
                 >
                     <div>
                         <div class="flex items-start justify-between gap-4 mb-4">
@@ -512,7 +512,7 @@ const submitMasterBarang = () => {
                 <p class="text-sm text-gray-400 mt-2">Belum ada pesanan yang masuk ke SPK.</p>
             </div>
 
-            <div v-if="spks?.links?.length" class="mt-8 flex flex-wrap gap-2 justify-center">
+            <div v-if="spks?.links?.length" class="mt-4 flex flex-wrap gap-2 justify-center">
                 <Link
                     v-for="(link, index) in spks.links"
                     :key="index"

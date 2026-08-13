@@ -152,7 +152,7 @@ class BarangController extends Controller
                     });
                 })
                 ->when($request->filled('category_code'), function ($query) use ($request) {
-                    $query->whereHas('details.barang', fn($q) => $q->where('category_code', $request->category_code));
+                    $query->whereHas('details', fn($q) => $q->where('category_id', $request->category_code));
                 })
                 ->orderByDesc('created_at')
                 ->paginate(12)
@@ -179,7 +179,7 @@ class BarangController extends Controller
                     });
                 })
                 ->when($request->filled('category_code'), function ($query) use ($request) {
-                    $query->whereHas('barang', fn($q) => $q->where('category_code', $request->category_code));
+                    $query->where('category_id', $request->category_code);
                 })
                 ->orderByDesc('created_at')
                 ->paginate(12)
@@ -190,6 +190,7 @@ class BarangController extends Controller
         $categories = Category::select([
             'categorycode',
             'categoryname',
+            'gambar',
         ])
             ->orderBy('categoryname')
             ->get();

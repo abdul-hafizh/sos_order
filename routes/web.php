@@ -11,6 +11,7 @@ use App\Http\Controllers\SpkController;
 use App\Http\Controllers\MasterBarangController;
 use App\Http\Controllers\BarangVendorController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\MasterKategoriController;
 use App\Http\Controllers\MasterTipeController;
 use App\Http\Controllers\MasterSatuanController;
 use App\Http\Controllers\MasterBeratController;
@@ -80,6 +81,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('vendor', VendorController::class);
         Route::resource('barang', BarangController::class);
         Route::resource('master-barang', MasterBarangController::class);
+
+        Route::resource('master-kategori', MasterKategoriController::class)->only(['index', 'update']);
 
         Route::resource('master-tipe', MasterTipeController::class);
         Route::resource('master-satuan', MasterSatuanController::class);

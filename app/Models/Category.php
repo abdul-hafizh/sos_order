@@ -19,6 +19,7 @@ class Category extends Model
     protected $fillable = [
         'categorycode',
         'categoryname',
+        'gambar',
         'komisi',
         'komisinilai',
         'supervisor',
@@ -36,6 +37,7 @@ class Category extends Model
     protected $appends = [
         'code',
         'name',
+        'gambar_url',
     ];
 
     public function getCodeAttribute()
@@ -46,5 +48,10 @@ class Category extends Model
     public function getNameAttribute()
     {
         return $this->categoryname;
+    }
+
+    public function getGambarUrlAttribute()
+    {
+        return $this->gambar ? asset('storage/' . $this->gambar) : null;
     }
 }
