@@ -23,36 +23,6 @@ const props = defineProps({
 const selectedSpk = ref(null);
 const showDetail = ref(false);
 
-const showMasterModal = ref(false);
-const masterSpk = ref(null);
-
-const masterForm = ref({
-    kode_barang: '',
-    nama_barang: '',
-    harga_beli: 0,
-    harga_jual: 0,
-    satuan: '',
-    stok: 0,
-});
-
-const openMasterBarang = (spk) => {
-    masterSpk.value = spk;
-
-    const randomNumbers = Math.floor(1000000 + Math.random() * 9000000);
-    const otomatisKodeBarang = `R${randomNumbers}`;
-
-    masterForm.value = {
-        kode_barang: otomatisKodeBarang,
-        nama_barang: spk.nama_barang || '',
-        harga_beli: spk.harga_beli || 0,
-        harga_jual: spk.harga_jual || 0,
-        satuan: spk.satuan || '',
-        stok: 0,
-    };
-
-    showMasterModal.value = true;
-};
-
 const params = ref({
     search: props.filters?.search || '',
     status_validasi: props.filters?.status_validasi || '',
@@ -175,11 +145,6 @@ const updateKirim = (spk) => {
     });
 };
 
-const closeMasterBarang = () => {
-    showMasterModal.value = false;
-    masterSpk.value = null;
-};
-
 const getSpkImages = (spk) => {
     if (spk.gambars?.length) {
         return spk.gambars
@@ -257,24 +222,6 @@ const changeKetersediaan = (spk, statusBaru) => {
     });
 };
 
-const submitMasterBarang = () => {
-    if (!masterSpk.value) return;
-
-    if (!confirm('Apakah Anda yakin ingin membuat master barang dari SPK ini?')) {
-        return;
-    }
-
-    router.post(route('spk.buatMasterBarang', masterSpk.value.id_po), masterForm.value, {
-        preserveScroll: true,
-        onSuccess: () => {
-            closeMasterBarang();
-        },
-        onError: (errors) => {
-            console.log(errors);
-            alert('Gagal membuat master barang. Cek kode barang atau field wajib.');
-        },
-    });
-};
 
 </script>
 
@@ -504,15 +451,6 @@ const submitMasterBarang = () => {
                             </div>
                         </div>
 
-                        <Button
-                            v-if="!spk.kode_barang"
-                            type="button"
-                            class="w-full bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs h-9 mt-1"
-                            @click="openMasterBarang(spk)"
-                        >
-                            <Plus class="w-4 h-4 mr-1.5" />
-                            Buat Master Barang
-                        </Button>
                     </div>
                 </div>
             </div>
@@ -644,87 +582,5 @@ const submitMasterBarang = () => {
             </div>
         </div>
 
-        <div
-            v-if="showMasterModal && masterSpk"
-            class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-        >
-            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden">
-                <div class="p-5 border-b flex items-center justify-between">
-                    <div>
-                        <h3 class="font-bold text-lg text-gray-900">
-                            Buat Master Barang
-                        </h3>
-                        <p class="text-sm text-gray-400">
-                            Dari SPK #{{ masterSpk.id_po }}
-                        </p>
-                    </div>
-
-                    <button type="button" class="p-2 rounded-full hover:bg-gray-100" @click="closeMasterBarang">
-                        <X class="w-5 h-5" />
-                    </button>
-                </div>
-
-                <form @submit.prevent="submitMasterBarang" class="p-5">
-                    <div class="mb-5">
-                        <p class="text-sm text-gray-400 mb-2">Gambar dari SPK</p>
-
-                        <div v-if="getSpkImages(masterSpk).length" class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <img
-                                v-for="(image, index) in getSpkImages(masterSpk)"
-                                :key="index"
-                                :src="image"
-                                class="w-full h-28 object-cover rounded-2xl border"
-                            />
-                        </div>
-
-                        <p v-else class="text-sm text-gray-400">
-                            Tidak ada gambar.
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-sm font-medium text-gray-600">Kode Barang</label>
-                            <Input v-model="masterForm.kode_barang" class="mt-1 rounded-xl" required />
-                        </div>
-
-                        <div>
-                            <label class="text-sm font-medium text-gray-600">Nama Barang</label>
-                            <Input v-model="masterForm.nama_barang" class="mt-1 rounded-xl" required />
-                        </div>
-
-                        <div>
-                            <label class="text-sm font-medium text-gray-600">Harga Beli</label>
-                            <Input v-model="masterForm.harga_beli" type="number" class="mt-1 rounded-xl" />
-                        </div>
-
-                        <div>
-                            <label class="text-sm font-medium text-gray-600">Harga Jual</label>
-                            <Input v-model="masterForm.harga_jual" type="number" class="mt-1 rounded-xl" />
-                        </div>
-
-                        <div>
-                            <label class="text-sm font-medium text-gray-600">Satuan</label>
-                            <Input v-model="masterForm.satuan" class="mt-1 rounded-xl" placeholder="pcs, box, rim" />
-                        </div>
-
-                        <div>
-                            <label class="text-sm font-medium text-gray-600">Stok Awal</label>
-                            <Input v-model="masterForm.stok" type="number" class="mt-1 rounded-xl" />
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end gap-3 mt-6 pt-5 border-t">
-                        <Button type="button" variant="outline" @click="closeMasterBarang">
-                            Batal
-                        </Button>
-
-                        <Button type="submit" class="bg-blue-700 text-white">
-                            Simpan Master Barang
-                        </Button>
-                    </div>
-                </form>
-            </div>
-        </div>
     </AuthenticatedLayout>
 </template>

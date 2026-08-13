@@ -4,15 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Spk;
 use App\Models\Barang;
-use App\Models\BarangDetail;
-use App\Models\BarangGambar;
 use App\Models\MasterProduk;
 use App\Models\MasterProdukDetail;
 use App\Models\MasterProdukDetailGambar;
+use App\Models\MItem;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Libraries\SendTelegram;
 use Inertia\Inertia;
@@ -80,6 +78,27 @@ class SpkController extends Controller
                 'path_file' => $gambar->gambar,
             ]);
         }
+
+        // Sinkron ke m_item (legacy POS) — hanya kolom yang datanya benar-benar
+        // ada dari barang baru ini. Sisanya dibiarkan pakai default kolom di DB.
+        MItem::updateOrCreate(
+            ['itemcode' => $barang->kode_barang],
+            [
+                'itemcodeint' => $barang->kode_barang,
+                'itemcodeint1' => $barang->kode_barang,
+                'barcode1' => $barang->kode_barang,
+                'barcode2' => $barang->kode_barang,
+                'itemname' => $barang->nama_barang,
+                'itemname1' => $barang->nama_barang,
+                'buyingprice' => $barang->harga_beli,
+                'sellingprice' => $barang->harga_jual,
+                'minstock' => $barang->min_stok,
+                'maxstock' => $barang->max_stok,
+                'endstock' => $barang->stok,
+                'nonaktif' => $barang->active ? 0 : 1,
+                'canbesold' => $barang->active ? 1 : 0,
+            ]
+        );
 
         return $barang;
     }
@@ -214,82 +233,6 @@ class SpkController extends Controller
         return Inertia::render('Spk/Show', [
             'spk' => $spk,
         ]);
-    }
-
-    public function buatMasterBarang(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'kode_barang' => 'required|string|max:50|unique:t_barang,kode_barang',
-            'nama_barang' => 'required|string|max:255',
-            'harga_beli' => 'nullable|numeric',
-            'harga_jual' => 'nullable|numeric',
-            'satuan' => 'nullable|string|max:50',
-            'stok' => 'nullable|integer|min:0',
-        ]);
-
-        $spk = Spk::findOrFail($id);
-
-        if ($spk->id_barang || $spk->kode_barang) {
-            return back()->with('error', 'SPK ini sudah memiliki master barang.');
-        }
-
-        DB::transaction(function () use ($validated, $spk) {
-            $barang = Barang::create([
-                'kode_barang' => $validated['kode_barang'],
-                'nama_barang' => $validated['nama_barang'],
-                'harga_beli' => $validated['harga_beli'] ?? 0,
-                'harga_jual' => $validated['harga_jual'] ?? 0,
-                'satuan' => $validated['satuan'] ?? $spk->satuan,
-                'satuan_pos' => $validated['satuan'] ?? $spk->satuan,
-                'qty_pos' => 1,
-                'stok' => $validated['stok'] ?? 0,
-                'active' => 1,
-                'modified_by' => auth()->id(),
-                'modified_date' => now(),
-            ]);
-
-            $detail = BarangDetail::create([
-                'id_barang' => $barang->id_barang,
-                'nama_variant' => 'Default',
-                'kode_variant' => null,
-                'harga_beli' => $barang->harga_beli,
-                'harga_jual' => $barang->harga_jual,
-                'harga_jual_jumbo' => null,
-                'stok' => $barang->stok ?? 0,
-                'active' => 1,
-                'modified_by' => auth()->id(),
-                'modified_date' => now(),
-            ]);
-
-            if ($spk->gambar_permintaan && Storage::disk('public')->exists($spk->gambar_permintaan)) {
-                $extension = pathinfo($spk->gambar_permintaan, PATHINFO_EXTENSION) ?: 'jpg';
-                $newPath = 'barang/' . uniqid('spk_', true) . '.' . $extension;
-
-                Storage::disk('public')->copy($spk->gambar_permintaan, $newPath);
-
-                BarangGambar::create([
-                    'id_barang_detail' => $detail->id_barang_detail,
-                    'nama_file' => basename($newPath),
-                    'path_file' => $newPath,
-                    'active' => 1,
-                    'modified_by' => auth()->id(),
-                    'modified_date' => now(),
-                ]);
-            }
-
-            $spk->update([
-                'id_barang' => $barang->id_barang,
-                'kode_barang' => $barang->kode_barang,
-                'harga_beli' => $barang->harga_beli,
-                'harga_jual' => $barang->harga_jual,
-                'satuan' => $barang->satuan,
-                'satuan_pos' => $barang->satuan_pos,
-                'modified_by' => auth()->id(),
-                'modified_date' => now(),
-            ]);
-        });
-
-        return back()->with('success', 'Master barang berhasil dibuat dari SPK.');
     }
 
     public function updateValidasi(Request $request, $id)

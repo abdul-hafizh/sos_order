@@ -60,7 +60,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/spk/{id}/validasi', [SpkController::class, 'updateValidasi'])->name('spk.updateValidasi');
     Route::put('/spk/{id}/kirim', [SpkController::class, 'updateKirim'])->name('spk.updateKirim');
     Route::put('/spk/{id}/terima', [SpkController::class, 'updateTerima'])->name('spk.updateTerima');
-    Route::post('/spk/{id}/buat-master-barang', [SpkController::class, 'buatMasterBarang'])->name('spk.buatMasterBarang');
     Route::put('/spk/{id}/ketersediaan', [SpkController::class, 'updateKetersediaan'])->name('spk.updateKetersediaan');
 
     Route::middleware('ho.user')->group(function () {
