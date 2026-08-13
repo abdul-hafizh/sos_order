@@ -6,15 +6,84 @@ use App\Models\Spk;
 use App\Models\Barang;
 use App\Models\BarangDetail;
 use App\Models\BarangGambar;
+use App\Models\MasterProduk;
+use App\Models\MasterProdukDetail;
+use App\Models\MasterProdukDetailGambar;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use App\Libraries\SendTelegram;
 use Inertia\Inertia;
 
 class SpkController extends Controller
 {
+    /**
+     * Kode barang berurutan: ambil kode_barang terakhir dari t_barang,
+     * ambil bagian angkanya, lalu tambahkan 1 (mis. R8775493 -> R8775494).
+     */
+    private function generateKodeBarang(): string
+    {
+        $lastKode = Barang::orderByDesc('id_barang')->value('kode_barang');
+
+        preg_match('/(\d+)/', (string) $lastKode, $matches);
+        $number = isset($matches[1]) ? ((int) $matches[1]) + 1 : 1000000;
+
+        $kode = 'R' . $number;
+
+        while (Barang::where('kode_barang', $kode)->exists()) {
+            $number++;
+            $kode = 'R' . $number;
+        }
+
+        return $kode;
+    }
+
+    /**
+     * Provisioning t_barang untuk SPK "Permintaan barang baru" — dipanggil
+     * hanya saat admin menandai ketersediaan barang sebagai "Tersedia".
+     */
+    private function provisionBarangBaruFromSpk(Spk $spk): Barang
+    {
+        $barang = Barang::create([
+            'kode_barang' => $this->generateKodeBarang(),
+            'nama_barang' => Str::limit($spk->nama_barang, 100, ''),
+            'harga_beli' => 0,
+            'harga_jual' => 0,
+            'margin' => 0,
+            'satuan' => Str::limit($spk->satuan, 10, ''),
+            'stok' => 0,
+            'min_stok' => 0,
+            'max_stok' => 0,
+            'min_vendor' => 0,
+            'min_cabang' => 0,
+            'kirim_langsung' => 0,
+            'active' => 1,
+            'modified_by' => auth()->id(),
+            'modified_date' => now(),
+        ]);
+
+        $produk = MasterProduk::create([
+            'nama_produk' => $spk->nama_barang,
+        ]);
+
+        $produkDetail = MasterProdukDetail::create([
+            'id_produk' => $produk->id_produk,
+            'kode_barang' => $barang->kode_barang,
+        ]);
+
+        foreach ($spk->gambars as $gambar) {
+            MasterProdukDetailGambar::create([
+                'id_produk_detail' => $produkDetail->id_produk_detail,
+                'nama_file' => basename($gambar->gambar),
+                'path_file' => $gambar->gambar,
+            ]);
+        }
+
+        return $barang;
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -59,13 +128,31 @@ class SpkController extends Controller
             'is_available' => 'required|integer|in:0,1,2',
         ]);
 
-        $spk = Spk::findOrFail($id);
+        $spk = Spk::with('gambars')->findOrFail($id);
 
-        $spk->update([
-            'is_available' => $validated['is_available'],
-            'modified_by' => auth()->id(),
-            'modified_date' => now(),
-        ]);        
+        if (in_array((int) $spk->is_available, [1, 2], true)) {
+            return back()->with('error', 'Status ketersediaan barang ini sudah dikunci dan tidak dapat diubah lagi.');
+        }
+
+        $isBarangBaruBelumProvisi = !$spk->kode_barang
+            && !$spk->id_barang
+            && $spk->keterangan === 'Permintaan barang baru';
+
+        DB::transaction(function () use ($spk, $validated, $isBarangBaruBelumProvisi) {
+            if ($validated['is_available'] == 1 && $isBarangBaruBelumProvisi) {
+                $barang = $this->provisionBarangBaruFromSpk($spk);
+
+                $spk->kode_barang = $barang->kode_barang;
+                $spk->id_barang = $barang->id_barang;
+                $spk->harga_beli = $barang->harga_beli;
+                $spk->harga_jual = $barang->harga_jual;
+            }
+
+            $spk->is_available = $validated['is_available'];
+            $spk->modified_by = auth()->id();
+            $spk->modified_date = now();
+            $spk->save();
+        });
 
         try {
             $statusLabels = [

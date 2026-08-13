@@ -499,7 +499,7 @@ const pesanSekarang = () => {
                         v-if="categories?.length"
                         class="hidden lg:block flex-1 min-w-0 overflow-x-auto"
                     >
-                        <div class="flex items-center gap-6 justify-center px-2">
+                        <div class="flex items-center gap-3 justify-center px-2">
                             <button
                                 type="button"
                                 v-for="category in categories"
@@ -508,7 +508,7 @@ const pesanSekarang = () => {
                                 class="flex flex-col items-center gap-1 shrink-0 group"
                             >
                                 <div
-                                    class="w-16 h-16 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition"
+                                    class="w-10 h-10 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition"
                                     :class="
                                         selectedCategory === category.code
                                             ? 'border-blue-600 ring-2 ring-blue-100'
@@ -520,10 +520,10 @@ const pesanSekarang = () => {
                                         :src="category.gambar_url"
                                         class="w-full h-full object-cover"
                                     />
-                                    <Layers v-else class="w-6 h-6 text-gray-300" />
+                                    <Layers v-else class="w-4 h-4 text-gray-300" />
                                 </div>
                                 <span
-                                    class="text-xs font-medium w-20 text-center leading-tight line-clamp-2"
+                                    class="text-[10px] font-medium w-14 text-center leading-tight line-clamp-2"
                                     :class="
                                         selectedCategory === category.code
                                             ? 'text-blue-600'

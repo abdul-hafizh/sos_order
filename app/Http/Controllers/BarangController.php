@@ -25,6 +25,27 @@ use Inertia\Inertia;
 
 class BarangController extends Controller
 {
+    /**
+     * Kode barang berurutan: ambil kode_barang terakhir dari t_barang,
+     * ambil bagian angkanya, lalu tambahkan 1. Tanpa prefix huruf "R".
+     */
+    private function generateKodeBarang(): string
+    {
+        $lastKode = Barang::orderByDesc('id_barang')->value('kode_barang');
+
+        preg_match('/(\d+)/', (string) $lastKode, $matches);
+        $number = isset($matches[1]) ? ((int) $matches[1]) + 1 : 1000000;
+
+        $kode = (string) $number;
+
+        while (Barang::where('kode_barang', $kode)->exists()) {
+            $number++;
+            $kode = (string) $number;
+        }
+
+        return $kode;
+    }
+
     private function uniqueKodeVariantRule(Request $request): \Closure
     {
         return function (string $attribute, $value, \Closure $fail) use ($request) {
@@ -336,7 +357,6 @@ class BarangController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'kode_barang' => 'required|unique:t_barang,kode_barang',
             'nama_barang' => 'required|string|max:255',
             'harga_beli' => 'nullable|numeric',
             'harga_beli_before' => 'nullable|numeric',
@@ -349,7 +369,7 @@ class BarangController extends Controller
             'qty_pos' => 'nullable|integer',
             'min_stok' => 'nullable|integer',
             'max_stok' => 'nullable|integer',
-            'category_code' => 'nullable|string|max:20|exists:m_category,categorycode',
+            'category_code' => 'nullable|string|max:20|exists:m_category_2026,categorycode',
 
             'variants' => 'nullable|array',
             'variants.*.nama_variant' => 'nullable|string|max:100',
@@ -369,7 +389,7 @@ class BarangController extends Controller
             $hargaJualJumbo = $validated['harga_jual_jumbo'] ?? 0;
 
             $barang = Barang::create([
-                'kode_barang' => $validated['kode_barang'],
+                'kode_barang' => $this->generateKodeBarang(),
                 'nama_barang' => $validated['nama_barang'],
                 'harga_beli' => $hargaBeli,
                 'harga_beli_before' => $validated['harga_beli_before'] ?? 0,
@@ -479,7 +499,6 @@ class BarangController extends Controller
         $barang = Barang::with(['details.gambars'])->findOrFail($id);
 
         $validated = $request->validate([
-            'kode_barang' => 'required|unique:t_barang,kode_barang,' . $id . ',id_barang',
             'nama_barang' => 'required|string|max:255',
             'harga_beli' => 'nullable|numeric',
             'harga_beli_before' => 'nullable|numeric',
@@ -492,7 +511,7 @@ class BarangController extends Controller
             'qty_pos' => 'nullable|integer',
             'min_stok' => 'nullable|integer',
             'max_stok' => 'nullable|integer',
-            'category_code' => 'nullable|string|max:20|exists:m_category,categorycode',
+            'category_code' => 'nullable|string|max:20|exists:m_category_2026,categorycode',
 
             'variants' => 'nullable|array',
             'variants.*.id_barang_detail' => 'nullable|integer',
@@ -516,7 +535,6 @@ class BarangController extends Controller
             $hargaJualJumbo = $validated['harga_jual_jumbo'] ?? 0;
 
             $barang->update([
-                'kode_barang' => $validated['kode_barang'],
                 'nama_barang' => $validated['nama_barang'],
                 'harga_beli' => $hargaBeli,
                 'harga_beli_before' => $validated['harga_beli_before'] ?? 0,

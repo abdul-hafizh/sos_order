@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Category extends Model
 {
-    protected $table = 'm_category';
+    protected $table = 'm_category_2026';
 
     protected $primaryKey = 'categorycode';
 
@@ -25,6 +25,9 @@ class Category extends Model
         'supervisor',
         'remarks',
         'cekpengambilan',
+        'warehouseprinter',
+        'markup',
+        'margin',
         'user_id',
     ];
 

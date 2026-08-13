@@ -5,9 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Barang;
 use App\Models\Keranjang;
 use App\Models\KeranjangDetail;
-use App\Models\MasterProduk;
-use App\Models\MasterProdukDetail;
-use App\Models\MasterProdukDetailGambar;
 use App\Models\Spk;
 use App\Models\SpkGambar;
 use App\Models\User;
@@ -32,58 +29,6 @@ class KeranjangController extends Controller
                 'status' => 'draft',
             ]
         );
-    }
-
-    private function generateKodeBarang(): string
-    {
-        do {
-            $kode = 'R' . random_int(1000000, 9999999);
-        } while (Barang::where('kode_barang', $kode)->exists());
-
-        return $kode;
-    }
-
-    private function provisionBarangBaru(KeranjangDetail $item): Barang
-    {
-        $barang = Barang::create([
-            'kode_barang' => $this->generateKodeBarang(),
-            'nama_barang' => Str::limit($item->nama_barang, 100, ''),
-            'harga_beli' => 0,
-            'harga_jual' => 0,
-            'margin' => 0,
-            'satuan' => Str::limit($item->satuan, 10, ''),
-            'stok' => 0,
-            'min_stok' => 0,
-            'max_stok' => 0,
-            'min_vendor' => 0,
-            'min_cabang' => 0,
-            'kirim_langsung' => 0,
-            'active' => 1,
-            'modified_by' => auth()->id(),
-            'modified_date' => now(),
-        ]);
-
-        $produk = MasterProduk::create([
-            'nama_produk' => $item->nama_barang,
-        ]);
-
-        $produkDetail = MasterProdukDetail::create([
-            'id_produk' => $produk->id_produk,
-            'kode_barang' => $barang->kode_barang,
-        ]);
-
-        foreach ($item->gambar as $gambar) {
-            MasterProdukDetailGambar::create([
-                'id_produk_detail' => $produkDetail->id_produk_detail,
-                'nama_file' => basename($gambar->gambar),
-                'path_file' => $gambar->gambar,
-            ]);
-        }
-
-        $item->id_barang = $barang->id_barang;
-        $item->setRelation('barang', $barang);
-
-        return $barang;
     }
 
     private function addBarangToKeranjang(Keranjang $keranjang, Barang $barang, int $qty): void
@@ -259,10 +204,8 @@ class KeranjangController extends Controller
             $user = auth()->user();
 
             foreach ($items as $item) {
-                if ($item->tipe_item === 'barang_baru' && !$item->id_barang) {
-                    $this->provisionBarangBaru($item);
-                }
-
+                // Barang baru sengaja TIDAK di-provision ke t_barang di sini.
+                // kode_barang baru digenerate saat admin klik "Tersedia" di menu SPK.
                 $spk = Spk::create([
                     'period' => now()->format('Y-m-d'),
                     'po_ke' => 1,

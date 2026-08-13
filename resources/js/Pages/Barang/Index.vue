@@ -9,7 +9,6 @@ import SearchSelect from "@/Components/SearchSelect.vue";
 import {
     Package,
     Pencil,
-    Trash,
     Plus,
     X,
     Search,
@@ -36,9 +35,7 @@ const props = defineProps({
 });
 
 const showModal = ref(false);
-const showDeleteModal = ref(false);
 const editingBarang = ref(null);
-const barangToDelete = ref(null);
 const activeTab = ref("produk");
 
 const params = ref({
@@ -109,7 +106,6 @@ const emptyVariant = () => ({
 });
 
 const form = useForm({
-    kode_barang: "",
     nama_barang: "",
     harga_beli: 0,
     harga_beli_before: 0,
@@ -125,11 +121,6 @@ const form = useForm({
     category_code: "",
     variants: [emptyVariant()],
 });
-
-const generateKodeBarang = () => {
-    const randomNumbers = Math.floor(1000000 + Math.random() * 9000000);
-    return `R${randomNumbers}`;
-};
 
 const categoryMaster = ref([]);
 const categoryKeyword = ref("");
@@ -179,7 +170,6 @@ const openModal = (item = null) => {
     activeTab.value = "produk";
 
     if (item) {
-        form.kode_barang = item.kode_barang;
         form.nama_barang = item.nama_barang;
         form.harga_beli = item.harga_beli ?? 0;
         form.harga_beli_before = item.harga_beli_before ?? 0;
@@ -221,7 +211,6 @@ const openModal = (item = null) => {
             : [emptyVariant()];
     } else {
         form.reset();
-        form.kode_barang = generateKodeBarang();
         form.variants = [emptyVariant()];
         categoryKeyword.value = "";
     }
@@ -303,20 +292,6 @@ const submit = () => {
             },
         });
     }
-};
-
-const confirmDelete = (item) => {
-    barangToDelete.value = item;
-    showDeleteModal.value = true;
-};
-
-const destroyBarang = () => {
-    router.delete(route("barang.destroy", barangToDelete.value.id_barang), {
-        onSuccess: () => {
-            showDeleteModal.value = false;
-            barangToDelete.value = null;
-        },
-    });
 };
 
 const getTrend = (current, before) => {
@@ -710,16 +685,6 @@ const destroyVendor = () => {
 
                                 <Button
                                     size="sm"
-                                    variant="outline"
-                                    class="text-xs md:text-sm rounded-md px-2.5 py-1.5 h-8 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                                    @click="confirmDelete(b)"
-                                >
-                                    <Trash class="w-3.5 h-3.5 md:mr-1" />
-                                    <span class="hidden md:inline">Hapus</span>
-                                </Button>
-
-                                <Button
-                                    size="sm"
                                     class="bg-emerald-600 rounded-sm hover:bg-emerald-700 text-white text-xs md:text-sm px-2.5 py-1.5 h-8 shadow-sm"
                                     @click="openVendorModal(b)"
                                 >
@@ -847,23 +812,6 @@ const destroyVendor = () => {
                                     class="text-xs text-red-500 mt-1"
                                 >
                                     {{ form.errors.satuan }}
-                                </p>
-                            </div>
-
-                            <div>
-                                <label class="text-sm font-medium text-gray-600"
-                                    >Kode Barang</label
-                                >
-                                <Input
-                                    v-model="form.kode_barang"
-                                    class="mt-1 rounded-xl"
-                                    required
-                                />
-                                <p
-                                    v-if="form.errors.kode_barang"
-                                    class="text-xs text-red-500 mt-1"
-                                >
-                                    {{ form.errors.kode_barang }}
                                 </p>
                             </div>
 
@@ -1019,36 +967,6 @@ const destroyVendor = () => {
                             </Button>
                         </div>
                     </form>
-                </div>
-            </div>
-
-            <div
-                v-if="showDeleteModal"
-                class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            >
-                <div class="bg-white p-6 rounded-3xl w-full max-w-sm shadow-xl">
-                    <h2 class="font-bold text-lg mb-2">Konfirmasi Hapus</h2>
-                    <p class="text-sm text-gray-500">
-                        Yakin ingin menghapus
-                        <b>{{ barangToDelete?.nama_barang }}</b
-                        >?
-                    </p>
-
-                    <div class="flex justify-end gap-2 mt-5">
-                        <Button
-                            variant="outline"
-                            @click="showDeleteModal = false"
-                        >
-                            Batal
-                        </Button>
-
-                        <Button
-                            class="bg-red-600 text-white"
-                            @click="destroyBarang"
-                        >
-                            Hapus
-                        </Button>
-                    </div>
                 </div>
             </div>
 

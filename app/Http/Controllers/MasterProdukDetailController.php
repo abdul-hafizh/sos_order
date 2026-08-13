@@ -77,7 +77,7 @@ class MasterProdukDetailController extends Controller
     {
         $validated = $request->validate([
             'id_produk' => 'required|integer|exists:master_produk,id_produk',
-            'category_id' => 'nullable|string|max:20|exists:m_category,categorycode',
+            'category_id' => 'nullable|string|max:20|exists:m_category_2026,categorycode',
             'kode_barang' => 'nullable|string|max:50|unique:master_produk_detail,kode_barang',
             'id_tipe' => 'nullable|integer|exists:master_tipe,id_tipe',
             'id_satuan' => 'nullable|integer|exists:master_satuan,id_satuan',
@@ -116,7 +116,7 @@ class MasterProdukDetailController extends Controller
 
         $validated = $request->validate([
             'id_produk' => 'required|integer|exists:master_produk,id_produk',
-            'category_id' => 'nullable|string|max:20|exists:m_category,categorycode',
+            'category_id' => 'nullable|string|max:20|exists:m_category_2026,categorycode',
             'kode_barang' => [
                 'nullable',
                 'string',

@@ -233,7 +233,15 @@ const updateTerima = (spk) => {
     });
 };
 
+const isKetersediaanLocked = (spk) => {
+    return Number(spk.is_available) === 1 || Number(spk.is_available) === 2;
+};
+
 const changeKetersediaan = (spk, statusBaru) => {
+    if (isKetersediaanLocked(spk)) {
+        return;
+    }
+
     let label = 'Menunggu Verifikasi';
     if (statusBaru === 1) label = 'Tersedia';
     if (statusBaru === 2) label = 'Tidak Tersedia';
@@ -468,7 +476,8 @@ const submitMasterBarang = () => {
                             <div class="grid grid-cols-3 gap-1.5 mt-1">
                                 <button
                                     type="button"
-                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition"
+                                    :disabled="isKetersediaanLocked(spk)"
+                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     :class="(!spk.is_available || Number(spk.is_available) === 0) ? 'bg-yellow-600 text-white border-yellow-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     @click="changeKetersediaan(spk, 0)"
                                 >
@@ -476,7 +485,8 @@ const submitMasterBarang = () => {
                                 </button>
                                 <button
                                     type="button"
-                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition"
+                                    :disabled="isKetersediaanLocked(spk)"
+                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     :class="Number(spk.is_available) === 1 ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     @click="changeKetersediaan(spk, 1)"
                                 >
@@ -484,7 +494,8 @@ const submitMasterBarang = () => {
                                 </button>
                                 <button
                                     type="button"
-                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition"
+                                    :disabled="isKetersediaanLocked(spk)"
+                                    class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     :class="Number(spk.is_available) === 2 ? 'bg-red-600 text-white border-red-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     @click="changeKetersediaan(spk, 2)"
                                 >
