@@ -14,6 +14,8 @@ use App\Models\MasterTipe;
 use App\Models\MasterUkuran;
 use App\Models\MasterUom;
 use App\Models\MasterWarna;
+use App\Models\MItem;
+use App\Models\Ppn;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -171,6 +173,87 @@ class MasterProdukDetailController extends Controller
         });
 
         return back()->with('success', 'Produk detail berhasil diupdate');
+    }
+
+    /**
+     * Kolom master_produk_detail yang wajib terisi sebelum boleh disinkron ke m_item.
+     */
+    private function missingProdukDetailFields(MasterProdukDetail $produkDetail): array
+    {
+        $required = [
+            'kode_barang' => $produkDetail->kode_barang,
+            'id_tipe' => $produkDetail->id_tipe,
+            'id_satuan' => $produkDetail->id_satuan,
+            'id_uom' => $produkDetail->id_uom,
+        ];
+
+        return array_keys(array_filter($required, fn($value) => empty($value)));
+    }
+
+    /**
+     * Kolom harga t_barang yang wajib terisi (bukan kosong/0) sebelum boleh disinkron ke m_item.
+     */
+    private function missingHargaFields(?Barang $barang): array
+    {
+        if (!$barang) {
+            return ['barang'];
+        }
+
+        $required = [
+            'harga_beli_before' => $barang->harga_beli_before,
+            'harga_beli' => $barang->harga_beli,
+            'harga_jual_before' => $barang->harga_jual_before,
+            'harga_jual' => $barang->harga_jual,
+            'harga_jual_jumbo' => $barang->harga_jual_jumbo,
+            'harga_jual_jumbo_before' => $barang->harga_jual_jumbo_before,
+        ];
+
+        return array_keys(array_filter($required, fn($value) => $value === null || (float) $value <= 0));
+    }
+
+    public function syncMItem($id)
+    {
+        $produkDetail = MasterProdukDetail::with(['barang', 'category', 'uom'])->findOrFail($id);
+
+        $missingDetail = $this->missingProdukDetailFields($produkDetail);
+        $missingHarga = $this->missingHargaFields($produkDetail->barang);
+
+        if (!empty($missingDetail) || !empty($missingHarga)) {
+            return back()->with('error', 'Lengkapi dulu data yang masih kosong sebelum sinkron ke m_item: ' . implode(', ', array_merge($missingDetail, $missingHarga)));
+        }
+
+        $barang = $produkDetail->barang;
+
+        $ppnPercent = (float) (Ppn::where('active', 1)->orderByDesc('id_ppn')->value('persen_ppn') ?? 0);
+        $marginPercent = (float) ($produkDetail->category->margin ?? 0);
+
+        $hargaJualSetelahPpn = $barang->harga_jual * (1 + $ppnPercent / 100);
+        $sellingPrice = round($hargaJualSetelahPpn * (1 + $marginPercent / 100), 2);
+
+        MItem::updateOrCreate(
+            ['itemcode' => $barang->kode_barang],
+            [
+                'itemcodeint' => $barang->kode_barang,
+                'itemcodeint1' => $barang->kode_barang,
+                'barcode1' => $barang->kode_barang,
+                'barcode2' => $barang->kode_barang,
+                'itemname' => $barang->nama_barang,
+                'itemname1' => $barang->nama_barang,
+                'categorycode' => $produkDetail->category_id,
+                'uom' => $produkDetail->uom->nama_uom ?? null,
+                'minstock' => $barang->min_stok,
+                'maxstock' => $barang->max_stok,
+                'endstock' => $barang->stok,
+                'buyingprice' => $barang->harga_beli,
+                'lastbuyingprice' => $barang->harga_beli_before,
+                'sellingprice' => $sellingPrice,
+                'sellingpricealt' => $sellingPrice,
+                'nonaktif' => $barang->active ? 0 : 1,
+                'canbesold' => $barang->active ? 1 : 0,
+            ]
+        );
+
+        return back()->with('success', 'Barang berhasil disinkronkan ke m_item.');
     }
 
     public function destroy($id)

@@ -35,6 +35,7 @@ const masterDataItems = [
     { name: 'Warna', route: 'master-warna.index' },
     { name: 'Karakter', route: 'master-karakter.index' },
     { name: 'UOM', route: 'master-uom.index' },
+    { name: 'PPN', route: 'master-ppn.index' },
 ];
 
 const getRoute = (name) => (name ? route(name) : '#');

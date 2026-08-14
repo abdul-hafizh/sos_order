@@ -13,6 +13,7 @@ import {
     Trash,
     Search,
     ImagePlus,
+    Upload,
     X,
 } from 'lucide-vue-next';
 
@@ -221,6 +222,37 @@ const destroyProdukDetail = () => {
         },
     });
 };
+
+// --- Sinkron ke m_item: tombol hanya aktif kalau atribut produk detail
+// (kode barang, type, satuan, UOM) dan seluruh harga di t_barang sudah terisi.
+const isReadyForMItem = (item) => {
+    const hasDetail = !!(item.kode_barang && item.id_tipe && item.id_satuan && item.id_uom);
+
+    const barang = item.barang;
+    const hargaFields = [
+        barang?.harga_beli_before,
+        barang?.harga_beli,
+        barang?.harga_jual_before,
+        barang?.harga_jual,
+        barang?.harga_jual_jumbo,
+        barang?.harga_jual_jumbo_before,
+    ];
+    const hasHarga = !!barang && hargaFields.every((v) => v !== null && v !== undefined && Number(v) > 0);
+
+    return hasDetail && hasHarga;
+};
+
+const syncMItem = (item) => {
+    if (!isReadyForMItem(item)) return;
+
+    if (!confirm(`Sinkronkan "${item.kode_barang}" ke tabel m_item sekarang?`)) {
+        return;
+    }
+
+    router.post(route('master-produk-detail.sync-m-item', item.id_produk_detail), {}, {
+        preserveScroll: true,
+    });
+};
 </script>
 
 <template>
@@ -309,6 +341,14 @@ const destroyProdukDetail = () => {
                             </td>
                             <td class="p-3">
                                 <div class="flex gap-2 justify-center">
+                                    <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        class="bg-green-500 text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+                                        :disabled="!isReadyForMItem(item)"
+                                        :title="isReadyForMItem(item) ? 'Sinkron ke m_item' : 'Lengkapi kode barang, type, satuan, UOM, dan seluruh harga terlebih dahulu'"
+                                        @click="syncMItem(item)"
+                                    ><Upload class="w-4 h-4" /></Button>
                                     <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md" @click="openModal(item)"><Pencil class="w-4 h-4" /></Button>
                                     <Button variant="ghost" size="xs" class="bg-red-500 text-white rounded-md" @click="confirmDelete(item)"><Trash class="w-4 h-4" /></Button>
                                 </div>
@@ -356,6 +396,14 @@ const destroyProdukDetail = () => {
                     </div>
 
                     <div class="flex gap-2 justify-end mt-3">
+                        <Button
+                            variant="ghost"
+                            size="xs"
+                            class="bg-green-500 text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+                            :disabled="!isReadyForMItem(item)"
+                            :title="isReadyForMItem(item) ? 'Sinkron ke m_item' : 'Lengkapi kode barang, type, satuan, UOM, dan seluruh harga terlebih dahulu'"
+                            @click="syncMItem(item)"
+                        ><Upload class="w-4 h-4" /></Button>
                         <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md" @click="openModal(item)"><Pencil class="w-4 h-4" /></Button>
                         <Button variant="ghost" size="xs" class="bg-red-500 text-white rounded-md" @click="confirmDelete(item)"><Trash class="w-4 h-4" /></Button>
                     </div>

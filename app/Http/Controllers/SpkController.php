@@ -7,7 +7,6 @@ use App\Models\Barang;
 use App\Models\MasterProduk;
 use App\Models\MasterProdukDetail;
 use App\Models\MasterProdukDetailGambar;
-use App\Models\MItem;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -78,27 +77,6 @@ class SpkController extends Controller
                 'path_file' => $gambar->gambar,
             ]);
         }
-
-        // Sinkron ke m_item (legacy POS) — hanya kolom yang datanya benar-benar
-        // ada dari barang baru ini. Sisanya dibiarkan pakai default kolom di DB.
-        MItem::updateOrCreate(
-            ['itemcode' => $barang->kode_barang],
-            [
-                'itemcodeint' => $barang->kode_barang,
-                'itemcodeint1' => $barang->kode_barang,
-                'barcode1' => $barang->kode_barang,
-                'barcode2' => $barang->kode_barang,
-                'itemname' => $barang->nama_barang,
-                'itemname1' => $barang->nama_barang,
-                'buyingprice' => $barang->harga_beli,
-                'sellingprice' => $barang->harga_jual,
-                'minstock' => $barang->min_stok,
-                'maxstock' => $barang->max_stok,
-                'endstock' => $barang->stok,
-                'nonaktif' => $barang->active ? 0 : 1,
-                'canbesold' => $barang->active ? 1 : 0,
-            ]
-        );
 
         return $barang;
     }

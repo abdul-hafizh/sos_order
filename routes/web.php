@@ -21,6 +21,7 @@ use App\Http\Controllers\MasterKarakterController;
 use App\Http\Controllers\MasterProdukController;
 use App\Http\Controllers\MasterProdukDetailController;
 use App\Http\Controllers\MasterUomController;
+use App\Http\Controllers\MasterPpnController;
 use App\Http\Controllers\AdminHoController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -94,9 +95,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('master-produk-detail-barang-options', [MasterProdukDetailController::class, 'barangOptions'])
             ->name('master-produk-detail.barang-options');
+        Route::post('master-produk-detail/{id}/sync-m-item', [MasterProdukDetailController::class, 'syncMItem'])
+            ->name('master-produk-detail.sync-m-item');
         Route::resource('master-produk-detail', MasterProdukDetailController::class);
 
         Route::resource('master-uom', MasterUomController::class);
+
+        Route::resource('master-ppn', MasterPpnController::class);
 
         Route::prefix('barang-vendor')
             ->name('barang-vendor.')
