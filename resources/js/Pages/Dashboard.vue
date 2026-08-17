@@ -1,27 +1,40 @@
 <script setup>
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, router, useForm, Link, usePage } from "@inertiajs/vue3";
-import { ref, watch, computed } from "vue";
+import LoginModal from "@/Components/LoginModal.vue";
+import { Head, Link, router, useForm, usePage } from "@inertiajs/vue3";
+import { ref, watch, computed, onMounted } from "vue";
 import { Input } from "@/Components/ui/input";
 import { Button } from "@/Components/ui/button";
 import {
     Search,
-    ImagePlus,
     ImageOff,
     Package,
-    Layers,
     UploadCloud,
     X,
     ShoppingCart,
     Plus,
     Building2,
     Minus,
-    ArrowLeft,
+    Eye,
+    Sparkles,
+    SlidersHorizontal,
+    Tag,
+    Grid,
+    List,
+    Layers,
+    CheckCircle2,
+    ShieldCheck,
+    Truck,
+    Flame,
+    Star,
+    Zap,
+    ArrowRight,
+    MapPin,
+    BadgeCheck,
+    Info,
 } from "lucide-vue-next";
 
 const props = defineProps({
-    tipeList: Object,
-    selectedTipe: Object,
     variantList: Object,
     categories: {
         type: Array,
@@ -33,30 +46,118 @@ const props = defineProps({
     keranjang: Object,
 });
 
+// Login Modal State
+const showLoginModal = ref(false);
+
+// Catalog Section Anchor Reference for Point 1
+const catalogSectionRef = ref(null);
+
+// View Toggle Mode: 'grid' or 'list'
+const viewMode = ref('grid');
+
 const previewImage = ref(props.image_path ? `/storage/${props.image_path}` : null);
 
 const imageForm = useForm({
     image: null,
 });
 
-const previewModalData = ref({
-    images: [],
-    activeIndex: 0,
-    item: null,
-});
+// Guest Cart LocalStorage State
+const guestCartItems = ref([]);
 
-const openPreview = (item, index = 0) => {
-    selectedItem.value = item;
+const loadGuestCart = () => {
+    try {
+        const saved = localStorage.getItem("guest_cart");
+        if (saved) {
+            guestCartItems.value = JSON.parse(saved);
+        }
+    } catch (e) {
+        guestCartItems.value = [];
+    }
+};
 
-    previewModalData.value = {
-        images: item.gambar.map((g) => `/storage/${g.gambar}`),
-        activeIndex: index,
-        item,
-    };
+const saveGuestCart = () => {
+    try {
+        localStorage.setItem("guest_cart", JSON.stringify(guestCartItems.value));
+    } catch (e) {}
+};
+
+// Quick View Modal State
+const quickViewVariant = ref(null);
+const quickViewQty = ref(1);
+
+const openQuickView = (detail) => {
+    quickViewVariant.value = detail;
+    quickViewQty.value = 1;
+};
+
+const closeQuickView = () => {
+    quickViewVariant.value = null;
+    quickViewQty.value = 1;
+};
+
+const currentUser = computed(() => usePage().props.auth?.user);
+const currentCabangName = computed(
+    () => currentUser.value?.cabang?.cabang_nama || currentUser.value?.kode_cabang,
+);
+
+const addQuickViewToCart = () => {
+    if (!quickViewVariant.value?.barang) return;
+
+    if (!currentUser.value) {
+        // Guest Cart Flow
+        addGuestItem(quickViewVariant.value, quickViewQty.value);
+        closeQuickView();
+        showCart.value = true;
+        return;
+    }
+
+    bulkAddForm.items = [{
+        id_barang: quickViewVariant.value.barang.id_barang,
+        qty: quickViewQty.value,
+    }];
+
+    bulkAddForm.post(route("keranjang.storeBarangBanyak"), {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeQuickView();
+            showCart.value = true;
+        },
+    });
 };
 
 const uploadInput = ref(null);
 const selectedItem = ref(null);
+const currentUploadingItem = ref(null);
+const cartItemFileInput = ref(null);
+
+const triggerUploadItemGambar = (item) => {
+    currentUploadingItem.value = item;
+    cartItemFileInput.value?.click();
+};
+
+const handleItemMultipleImageUpload = (e) => {
+    const files = e.target.files;
+    if (!files || !files.length || !currentUploadingItem.value) return;
+
+    if (!currentUser.value) {
+        showLoginModal.value = true;
+        return;
+    }
+
+    const formData = new FormData();
+    for (const file of files) {
+        formData.append("gambar[]", file);
+    }
+
+    router.post(
+        route("keranjang.uploadGambar", currentUploadingItem.value.id_keranjang_detail),
+        formData,
+        {
+            forceFormData: true,
+            preserveScroll: true,
+        },
+    );
+};
 
 const variantQty = ref({});
 
@@ -77,10 +178,10 @@ const changeVariantQty = (detail, delta) => {
 
 const variantLabel = (detail) => {
     const attrs = [
-        detail.warna?.nama,
         detail.ukuran?.nama,
         detail.berat?.nama,
         detail.karakter?.nama,
+        detail.satuan?.nama || detail.uom?.nama_uom,
     ]
         .filter(Boolean)
         .join(" - ");
@@ -104,17 +205,50 @@ const bulkAddForm = useForm({
     items: [],
 });
 
-const addSelectedVariantsToCart = () => {
-    const items = (props.variantList?.data || [])
-        .filter(
-            (d) => d.barang && (variantQty.value[d.id_produk_detail] || 0) > 0,
-        )
-        .map((d) => ({
-            id_barang: d.barang.id_barang,
-            qty: variantQty.value[d.id_produk_detail],
-        }));
+// Guest Helper function to add item to guestCartItems
+const addGuestItem = (detail, qtyToAdd) => {
+    const existingIndex = guestCartItems.value.findIndex(
+        (i) => i.id_barang === detail.barang.id_barang
+    );
 
-    if (!items.length) return;
+    if (existingIndex > -1) {
+        guestCartItems.value[existingIndex].qty += qtyToAdd;
+    } else {
+        guestCartItems.value.push({
+            id_keranjang_detail: `guest-${Date.now()}-${Math.random()}`,
+            id_barang: detail.barang.id_barang,
+            nama_barang: variantLabel(detail),
+            qty: qtyToAdd,
+            tipe_item: 'barang_terdaftar',
+            barang: detail.barang,
+            gambar_url: detail.gambars?.[0]?.path_file ? `/storage/${detail.gambars[0].path_file}` : null,
+            gambar: [],
+        });
+    }
+
+    saveGuestCart();
+};
+
+const addSelectedVariantsToCart = () => {
+    const selected = (props.variantList?.data || []).filter(
+        (d) => d.barang && (variantQty.value[d.id_produk_detail] || 0) > 0
+    );
+
+    if (!selected.length) return;
+
+    if (!currentUser.value) {
+        // Guest Cart Flow: Add all selected variants into LocalStorage Cart
+        for (const detail of selected) {
+            addGuestItem(detail, variantQty.value[detail.id_produk_detail]);
+        }
+        showCart.value = true;
+        return;
+    }
+
+    const items = selected.map((d) => ({
+        id_barang: d.barang.id_barang,
+        qty: variantQty.value[d.id_produk_detail],
+    }));
 
     bulkAddForm.items = items;
 
@@ -126,16 +260,49 @@ const addSelectedVariantsToCart = () => {
     });
 };
 
-const openUpload = (item) => {
-    selectedItem.value = item;
-    uploadInput.value.click();
+const addSingleVariantToCart = (detail) => {
+    if (!detail.barang) return;
+
+    const qty = variantQty.value[detail.id_produk_detail] > 0
+        ? variantQty.value[detail.id_produk_detail]
+        : 1;
+
+    if (!currentUser.value) {
+        // Guest Cart Flow: Add single variant into LocalStorage Cart
+        addGuestItem(detail, qty);
+        showCart.value = true;
+        return;
+    }
+
+    bulkAddForm.items = [{
+        id_barang: detail.barang.id_barang,
+        qty: qty,
+    }];
+
+    bulkAddForm.post(route("keranjang.storeBarangBanyak"), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showCart.value = true;
+        },
+    });
 };
 
-const cartItems = computed(() => props.keranjang?.items || []);
-const totalCartQty = computed(() => props.keranjang?.total_baris || 0);
+const cartItems = computed(() => {
+    if (currentUser.value) {
+        return props.keranjang?.items || [];
+    }
+    return guestCartItems.value;
+});
+
+const totalCartQty = computed(() => {
+    if (currentUser.value) {
+        return props.keranjang?.total_baris || 0;
+    }
+    return guestCartItems.value.length;
+});
+
 const showCart = ref(false);
 
-// Kelompokkan item keranjang berdasarkan induk produknya (master_produk)
 const groupedCartItems = computed(() => {
     const groups = new Map();
 
@@ -158,73 +325,6 @@ const groupedCartItems = computed(() => {
     return Array.from(groups.values());
 });
 
-const currentUser = computed(() => usePage().props.auth?.user);
-const currentCabangName = computed(
-    () => currentUser.value?.cabang?.cabang_nama || currentUser.value?.kode_cabang,
-);
-
-const uploadGambar = (e) => {
-    const files = e.target.files;
-
-    const formData = new FormData();
-
-    for (const file of files) {
-        formData.append("gambar[]", file);
-    }
-
-    router.post(
-        route("keranjang.uploadGambar", selectedItem.value.id_keranjang_detail),
-        formData,
-        {
-            forceFormData: true,
-            preserveScroll: true,
-
-            onSuccess: (page) => {
-                const item = page.props.keranjang.items.find(
-                    (x) =>
-                        x.id_keranjang_detail ===
-                        selectedItem.value.id_keranjang_detail,
-                );
-
-                if (item) {
-                    previewModalData.value.item = item;
-                    previewModalData.value.images = item.gambar.map(
-                        (g) => `/storage/${g.gambar}`,
-                    );
-                }
-            },
-        },
-    );
-};
-
-const updateNamaBarangBaru = (item, namaBarang) => {
-    if (item.tipe_item !== "barang_baru") return;
-
-    const nama = namaBarang.trim();
-
-    if (!nama || nama === item.nama_barang) return;
-
-    router.put(
-        route("keranjang.updateNamaBarangBaru", item.id_keranjang_detail),
-        {
-            nama_barang: nama,
-        },
-        {
-            preserveScroll: true,
-        },
-    );
-};
-const triggerUploadFromModal = () => {
-    if (!previewModalData.value.item) {
-        alert("Data item tidak ditemukan.");
-        return;
-    }
-
-    selectedItem.value = previewModalData.value.item;
-
-    uploadInput.value?.click();
-};
-
 const barangBaruForm = useForm({
     nama_barang: "",
     qty: 1,
@@ -235,6 +335,11 @@ const barangBaruForm = useForm({
 });
 
 const addBarangBaruToCart = () => {
+    if (!currentUser.value) {
+        showLoginModal.value = true;
+        return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
 
     barangBaruForm.nama_barang =
@@ -256,6 +361,10 @@ const addBarangBaruToCart = () => {
 };
 
 const getCartImage = (item) => {
+    if (item.gambar_url) {
+        return item.gambar_url;
+    }
+
     if (item.tipe_item !== "barang_baru") {
         const masterImages = item.barang?.produk?.gambars || [];
         if (masterImages.length) {
@@ -275,9 +384,7 @@ const resetSearch = () => {
     previewImage.value = null;
     imageForm.reset();
     params.value.search = "";
-    appliedSearch.value = params.value.search;
     params.value.category_code = "";
-    params.value.id_tipe = "";
 
     router.get(
         route("dashboard"),
@@ -292,18 +399,31 @@ const resetSearch = () => {
 const updateCartQty = (item, qty) => {
     if (qty < 1) return;
 
+    if (!currentUser.value) {
+        // Guest Cart Qty Update
+        const target = guestCartItems.value.find(i => i.id_keranjang_detail === item.id_keranjang_detail);
+        if (target) {
+            target.qty = qty;
+            saveGuestCart();
+        }
+        return;
+    }
+
     router.put(
         route("keranjang.updateQty", item.id_keranjang_detail),
-        {
-            qty,
-        },
-        {
-            preserveScroll: true,
-        },
+        { qty },
+        { preserveScroll: true },
     );
 };
 
 const removeCartItem = (item) => {
+    if (!currentUser.value) {
+        // Guest Cart Remove
+        guestCartItems.value = guestCartItems.value.filter(i => i.id_keranjang_detail !== item.id_keranjang_detail);
+        saveGuestCart();
+        return;
+    }
+
     router.delete(route("keranjang.destroy", item.id_keranjang_detail), {
         preserveScroll: true,
     });
@@ -331,79 +451,92 @@ const searchByImage = () => {
 const params = ref({
     search: props.filters?.search || "",
     category_code: props.filters?.category_code || "",
-    id_tipe: props.filters?.id_tipe || "",
-    image_keyword: props.image_keyword || "",
-    image_path: props.image_path || "",
 });
 
-const selectedCategory = computed(() => {
-    return params.value.category_code;
-});
+const selectedCategory = computed(() => params.value.category_code);
 
-const appliedSearch = ref(props.filters.search || "");
+// Point 1: Scroll down to catalog results section when filter/search is applied
 const searchData = () => {
-    appliedSearch.value = params.value.search;
     router.get(
         route("dashboard"),
         {
             search: params.value.search,
             category_code: params.value.category_code,
-            id_tipe: params.value.id_tipe,
         },
-        {
-            preserveState: true,
-            replace: true,
-        },
+        { preserveState: true, replace: true },
     );
+    if (catalogSectionRef.value) {
+        catalogSectionRef.value.scrollIntoView({ behavior: 'smooth' });
+    }
 };
 
 const selectCategory = (categoryCode) => {
     params.value.category_code = categoryCode;
-
     router.get(
         route("dashboard"),
         {
             search: params.value.search,
             category_code: categoryCode,
-            id_tipe: params.value.id_tipe,
         },
-        {
-            preserveState: true,
-            replace: true,
-        },
+        { preserveState: true, replace: true },
     );
+    if (catalogSectionRef.value) {
+        catalogSectionRef.value.scrollIntoView({ behavior: 'smooth' });
+    }
 };
 
-const openTipe = (tipe) => {
-    params.value.id_tipe = tipe.id_tipe;
+// Handle login success from LoginModal
+const handleLoginSuccess = () => {
+    showLoginModal.value = false;
 
-    router.get(
-        route("dashboard"),
-        {
-            id_tipe: tipe.id_tipe,
-            search: params.value.search,
-            category_code: params.value.category_code,
-        },
-        {
-            preserveState: true,
-        },
-    );
+    // Load and sync guest cart items to backend database
+    loadGuestCart();
+    if (guestCartItems.value.length > 0) {
+        const itemsToSync = guestCartItems.value.map(i => ({
+            id_barang: i.id_barang,
+            qty: i.qty,
+        }));
+
+        bulkAddForm.items = itemsToSync;
+        bulkAddForm.post(route("keranjang.storeBarangBanyak"), {
+            preserveScroll: true,
+            onSuccess: () => {
+                guestCartItems.value = [];
+                localStorage.removeItem("guest_cart");
+                showCart.value = true;
+            },
+        });
+    } else {
+        showCart.value = true;
+    }
 };
 
-const backToTipe = () => {
-    params.value.id_tipe = "";
+// Sync guest cart to server after guest logs in
+onMounted(() => {
+    loadGuestCart();
 
-    router.get(
-        route("dashboard"),
-        {
-            search: params.value.search,
-            category_code: params.value.category_code,
-        },
-        {
-            preserveState: true,
-        },
-    );
-};
+    if (currentUser.value && guestCartItems.value.length > 0) {
+        const itemsToSync = guestCartItems.value.map(i => ({
+            id_barang: i.id_barang,
+            qty: i.qty,
+        }));
+
+        bulkAddForm.items = itemsToSync;
+        bulkAddForm.post(route("keranjang.storeBarangBanyak"), {
+            preserveScroll: true,
+            onSuccess: () => {
+                guestCartItems.value = [];
+                localStorage.removeItem("guest_cart");
+            },
+        });
+    }
+
+    if ((props.filters?.search || props.filters?.category_code) && catalogSectionRef.value) {
+        setTimeout(() => {
+            catalogSectionRef.value?.scrollIntoView({ behavior: 'smooth' });
+        }, 200);
+    }
+});
 
 const rupiah = (value) => {
     return new Intl.NumberFormat("id-ID", {
@@ -413,19 +546,9 @@ const rupiah = (value) => {
     }).format(value || 0);
 };
 
-const getTipeImage = (tipe) => {
-    for (const detail of tipe.details || []) {
-        const path = detail.gambars?.[0]?.path_file;
-        if (path) return `/storage/${path}`;
-    }
-    return null;
-};
-
 const handleImage = (event) => {
     const file = event.target.files?.[0];
-
     if (!file) return;
-
     imageForm.image = file;
     previewImage.value = URL.createObjectURL(file);
 };
@@ -435,7 +558,14 @@ const clearImage = () => {
     previewImage.value = null;
 };
 
+// SPK Submission Handler: OPEN LOGIN MODAL IF GUEST
 const pesanSekarang = () => {
+    if (!currentUser.value) {
+        // OPEN POPUP LOGIN MODAL FOR GUEST
+        showLoginModal.value = true;
+        return;
+    }
+
     if (!confirm("Apakah kamu yakin ingin menyimpan pesanan ini ke SPK?")) {
         return;
     }
@@ -451,973 +581,694 @@ const pesanSekarang = () => {
         },
     );
 };
+
+const getCategoryName = (code) => {
+    const found = props.categories.find(c => String(c.code) === String(code));
+    return found ? found.name : 'Kategori';
+};
+
+const flashItems = computed(() => (props.variantList?.data || []).slice(0, 6));
+
+// 10 Corporate Style Quick Category Icon Cards (Point 2: Cleanly aligned grid)
+const quickCategoryIcons = [
+    { title: 'Semua Kategori', icon: '🏬', catCode: '' },
+    { title: 'Minum & Termos', icon: '☕', catCode: '1' },
+    { title: 'Dapur & Bekal', icon: '🍱', catCode: '2' },
+    { title: 'Kebersihan', icon: '🧹', catCode: '3' },
+    { title: 'ATK Kantor', icon: '📝', catCode: '4' },
+    { title: 'Seragam APD', icon: '👕', catCode: '5' },
+    { title: 'Perangkat Desk', icon: '💻', catCode: '6' },
+    { title: 'Packing & Dus', icon: '📦', catCode: '7' },
+    { title: 'Promo SPK', icon: '⚡', catCode: '' },
+    { title: 'Semua Produk', icon: '🔍', catCode: '' },
+];
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head title="Katalog Pengadaan Barang - SOS ORDER" />
 
-    <AuthenticatedLayout>
-        <div class="py-3 px-3 w-full" :class="selectedTipe && 'pb-24'">
-            <button
-                type="button"
-                class="fixed bottom-6 right-6 z-50 bg-blue-700 text-white rounded-full shadow-xl p-4 hover:bg-blue-800"
-                @click="showCart = true"
+    <AuthenticatedLayout
+        @open-login-modal="showLoginModal = true"
+        @toggle-cart="showCart = !showCart"
+    >
+        <!-- Pop-Up Login Modal Component -->
+        <LoginModal
+            :show="showLoginModal"
+            @close="showLoginModal = false"
+            @success="handleLoginSuccess"
+        />
+
+        <!-- Floating Cart Trigger Button -->
+        <button
+            type="button"
+            class="fixed bottom-6 right-6 z-50 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-2xl p-4 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer border-2 border-white/20"
+            @click="showCart = true"
+        >
+            <ShoppingCart class="w-6 h-6" />
+            <span
+                v-if="totalCartQty > 0"
+                class="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-black rounded-full min-w-6 h-6 flex items-center justify-center px-1.5 border-2 border-white shadow-md animate-bounce"
             >
-                <ShoppingCart class="w-6 h-6" />
+                {{ totalCartQty }}
+            </span>
+        </button>
 
-                <span
-                    v-if="totalCartQty > 0"
-                    class="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full min-w-6 h-6 flex items-center justify-center px-1"
-                >
-                    {{ totalCartQty }}
-                </span>
-            </button>
+        <div class="space-y-6 pb-20 font-sans">
+            
+            <!-- 1. Corporate Hero Banner (Original Indigo Theme) -->
+            <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 md:p-8 shadow-xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div class="absolute -right-12 -bottom-12 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
 
-            <div
-                class="bg-white rounded-3xl border border-gray-100 shadow-sm p-3 mb-3"
-            >
-                <!-- Header Utama -->
-                <div class="flex items-center justify-between gap-3 mb-3">
-                    <div class="flex items-center gap-3 shrink-0">
-                        <div class="bg-blue-50 text-blue-600 p-3 rounded-2xl">
-                            <Search class="w-6 h-6" />
+                <div class="space-y-3 relative z-10 max-w-2xl">
+                    <div class="inline-flex items-center space-x-2 bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 px-3.5 py-1 rounded-full text-xs font-bold">
+                        <Sparkles class="w-3.5 h-3.5 text-yellow-300" />
+                        <span>E-PROCUREMENT CATALOG 2026</span>
+                    </div>
+                    <h1 class="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight">
+                        Katalog Pengadaan Barang Internal SOS ORDER
+                    </h1>
+                    <p class="text-slate-300 text-xs sm:text-sm leading-relaxed font-medium">
+                        Semua barang operasional terdaftar lengkap. Pilih varian barang, tentukan jumlah pesanan Qty, dan langsung terbit Dokumen SPK Gudang Pusat.
+                    </p>
+                    
+                    <div class="pt-2 flex flex-wrap items-center gap-3 text-xs font-bold">
+                        <span class="bg-white/10 px-3 py-1 rounded-lg text-white flex items-center space-x-1">
+                            <BadgeCheck class="w-4 h-4 text-indigo-300" />
+                            <span>100% Terverifikasi</span>
+                        </span>
+                        <span class="bg-white/10 px-3 py-1 rounded-lg text-white flex items-center space-x-1">
+                            <Truck class="w-4 h-4 text-indigo-300" />
+                            <span>Gudang GSOS</span>
+                        </span>
+                        <span class="bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold shadow-2xs">
+                            Bebas PPN 11%
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Branch Status Badge -->
+                <div v-if="currentCabangName" class="relative z-10 shrink-0 bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-3xl flex items-center space-x-4 shadow-lg">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center font-bold text-white shrink-0 shadow-2xs">
+                        <Building2 class="w-6 h-6" />
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-300 uppercase tracking-widest font-bold">Cabang Pemesan</span>
+                        <h4 class="font-black text-white text-base">{{ currentCabangName }}</h4>
+                        <span class="text-[11px] text-indigo-300 font-bold">● Terhubung Dokumen SPK</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Point 2: Category Section Evenly Aligned Grid ("kategori pada dashboard diratakan") -->
+            <div class="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2 text-slate-900 font-black text-base">
+                        <Grid class="w-5 h-5 text-indigo-600" />
+                        <span>Kategori Pilihan Pengadaan</span>
+                    </div>
+                </div>
+
+                <!-- Point 2: 10 Evenly Aligned Category Icon Cards Grid -->
+                <div class="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-3 justify-items-stretch">
+                    <button
+                        v-for="(item, idx) in quickCategoryIcons"
+                        :key="idx"
+                        type="button"
+                        @click="selectCategory(item.catCode)"
+                        class="w-full h-full flex flex-col items-center justify-center p-3 rounded-2xl border transition duration-200 group cursor-pointer hover:-translate-y-1 shadow-2xs text-center min-h-[90px]"
+                        :class="selectedCategory === item.catCode && item.catCode ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200/80 hover:border-indigo-400 hover:bg-slate-50'"
+                    >
+                        <div class="w-11 h-11 rounded-2xl bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white transition flex items-center justify-center text-xl shadow-2xs mb-1">
+                            {{ item.icon }}
                         </div>
+                        <span class="text-[11px] font-bold text-slate-800 group-hover:text-indigo-600 line-clamp-1 w-full text-center">
+                            {{ item.title }}
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. Recommended Procurement Carousel Strip -->
+            <div v-if="flashItems.length" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 shadow-md space-y-4 border border-indigo-800/40">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="flex items-center space-x-2">
+                        <Zap class="w-6 h-6 text-yellow-300 animate-bounce" />
+                        <h3 class="font-black text-lg text-white">REKOMENDASI PENGADAAN TERPOPULER</h3>
+                        <span class="bg-indigo-600 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-2xs">Fast Order</span>
+                    </div>
+                </div>
+
+                <!-- Horizontal Scroll Product Cards -->
+                <div class="flex space-x-4 overflow-x-auto no-scrollbar py-1">
+                    <div
+                        v-for="detail in flashItems"
+                        :key="detail.id_produk_detail"
+                        class="w-48 shrink-0 bg-white text-slate-900 rounded-2xl p-3 shadow-md border border-slate-100 flex flex-col justify-between group hover:scale-[1.02] transition duration-200"
+                    >
                         <div>
-                            <h3
-                                class="font-bold text-gray-900 text-lg md:text-xl"
-                            >
-                                Dashboard
-                            </h3>
-                            <p class="text-xs md:text-sm text-gray-400">
-                                Cari barang berdasarkan teks atau gambar
-                            </p>
+                            <div class="aspect-square bg-slate-50 rounded-xl overflow-hidden relative mb-2">
+                                <img v-if="detail.gambars?.[0]" :src="`/storage/${detail.gambars[0].path_file}`" class="w-full h-full object-cover" />
+                                <ImageOff v-else class="w-8 h-8 text-slate-300 m-auto mt-10" />
+                                <span class="absolute top-1.5 left-1.5 bg-indigo-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded">
+                                    TOP Varian
+                                </span>
+                            </div>
+                            <h4 class="font-bold text-xs line-clamp-2 min-h-[32px] text-slate-900 group-hover:text-indigo-600">
+                                {{ variantLabel(detail) }}
+                            </h4>
+
+                            <div class="text-indigo-700 font-black text-sm mt-1">
+                                {{ rupiah(detail.barang?.harga_jual) }}
+                            </div>
                         </div>
+
+                        <Button type="button" size="sm" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" @click="addSingleVariantToCart(detail)">
+                            + Keranjang
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Keyword Banner if Image Search was performed -->
+            <div v-if="image_keyword" class="bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
+                        <Sparkles class="w-5 h-5" />
+                    </div>
+                    <div>
+                        <span class="text-xs text-indigo-600 font-bold">Hasil AI Photo Search:</span>
+                        <h4 class="font-bold text-slate-900 text-sm">"{{ image_keyword }}"</h4>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <Button type="button" size="sm" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" @click="addBarangBaruToCart">
+                        <Plus class="w-4 h-4 mr-1" />
+                        Ajukan Sebagai Barang Baru
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" class="text-xs rounded-xl" @click="resetSearch">
+                        Reset
+                    </Button>
+                </div>
+            </div>
+
+            <!-- 4. Point 1: Catalog Results Section Anchor Reference ("saat difilter maka yang muncul pada hasil pencarian adalah isinya") -->
+            <div ref="catalogSectionRef" class="scroll-mt-28 flex flex-col lg:flex-row gap-6 items-start">
+                
+                <!-- Left Sidebar Facet Filter Panel (Point 5: Filter Warna Dihilangkan) -->
+                <aside class="w-full lg:w-72 bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs shrink-0 space-y-6 lg:sticky lg:top-24">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div class="flex items-center space-x-2 text-slate-900 font-black text-sm">
+                            <SlidersHorizontal class="w-4 h-4 text-indigo-600" />
+                            <span>Filter Katalog</span>
+                        </div>
+                        <button v-if="params.search || params.category_code || previewImage" type="button" @click="resetSearch" class="text-xs font-bold text-red-600 hover:underline">
+                            Reset Semua
+                        </button>
                     </div>
 
-                    <!-- Kategori: strip gambar horizontal di tengah header (desktop) -->
-                    <div
-                        v-if="categories?.length"
-                        class="hidden lg:block flex-1 min-w-0 overflow-x-auto"
-                    >
-                        <div class="flex items-center gap-3 justify-center px-2">
-                            <button
-                                type="button"
-                                v-for="category in categories"
-                                :key="category.code"
-                                @click="selectCategory(category.code)"
-                                class="flex flex-col items-center gap-1 shrink-0 group"
-                            >
-                                <div
-                                    class="w-10 h-10 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition"
-                                    :class="
-                                        selectedCategory === category.code
-                                            ? 'border-blue-600 ring-2 ring-blue-100'
-                                            : 'border-gray-200 group-hover:border-blue-300'
-                                    "
-                                >
-                                    <img
-                                        v-if="category.gambar_url"
-                                        :src="category.gambar_url"
-                                        class="w-full h-full object-cover"
-                                    />
-                                    <Layers v-else class="w-4 h-4 text-gray-300" />
-                                </div>
-                                <span
-                                    class="text-[10px] font-medium w-14 text-center leading-tight line-clamp-2"
-                                    :class="
-                                        selectedCategory === category.code
-                                            ? 'text-blue-600'
-                                            : 'text-gray-500'
-                                    "
-                                >
-                                    {{ category.name }}
-                                </span>
+                    <!-- Search Filter Input -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Cari Varian / SKU</label>
+                        <div class="relative">
+                            <Search class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <Input
+                                v-model="params.search"
+                                @keyup.enter="searchData"
+                                placeholder="Nama, varian, atau SKU..."
+                                class="pl-10 pr-8 h-10 text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-100 bg-slate-50 w-full font-medium"
+                            />
+                            <button v-if="params.search" type="button" @click="resetSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                                ✕
                             </button>
                         </div>
                     </div>
 
-                    <div
-                        v-if="currentCabangName"
-                        class="hidden sm:flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-2xl text-sm font-semibold shrink-0"
-                    >
-                        <Building2 class="w-4 h-4" />
-                        {{ currentCabangName }}
-                    </div>
-                </div>
+                    <!-- Search by Image Box -->
+                    <form @submit.prevent="searchByImage" class="space-y-2 pt-2 border-t border-slate-100">
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Pencarian Foto AI</label>
+                        
+                        <label v-if="!previewImage" class="border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/50 transition rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer bg-slate-50 aspect-video">
+                            <UploadCloud class="w-6 h-6 text-indigo-600 mb-1" />
+                            <span class="text-xs font-bold text-slate-700">Upload Foto Sampel</span>
+                            <input name="image" type="file" accept="image/*" class="hidden" @change="handleImage" />
+                        </label>
 
-                <!-- Kategori: strip gambar horizontal (mobile & tablet) -->
-                <div
-                    v-if="categories?.length"
-                    class="lg:hidden -mx-3 px-3 mb-3 overflow-x-auto"
-                >
-                    <div class="flex items-center gap-6 w-max px-1">
-                        <button
-                            type="button"
-                            v-for="category in categories"
-                            :key="category.code"
-                            @click="selectCategory(category.code)"
-                            class="flex flex-col items-center gap-1 shrink-0 group"
-                        >
-                            <div
-                                class="w-12 h-12 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition"
-                                :class="
-                                    selectedCategory === category.code
-                                        ? 'border-blue-600 ring-2 ring-blue-100'
-                                        : 'border-gray-200 group-hover:border-blue-300'
-                                "
+                        <div v-else class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center aspect-video p-2">
+                            <img :src="previewImage" class="max-w-full max-h-full object-contain" />
+                            <button type="button" class="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1 rounded-full transition" @click="clearImage">
+                                <X class="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <Button type="submit" size="sm" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs h-9 font-bold" :disabled="!imageForm.image || imageForm.processing">
+                            {{ imageForm.processing ? "Mencari..." : "Cari Gambar" }}
+                        </Button>
+                    </form>
+
+                    <!-- Category List -->
+                    <div class="space-y-2 pt-2 border-t border-slate-100">
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Pilih Kategori</label>
+                        
+                        <div class="space-y-1">
+                            <button
+                                type="button"
+                                @click="selectCategory('')"
+                                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition"
+                                :class="!selectedCategory ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'text-slate-600 hover:bg-slate-100'"
                             >
-                                <img
-                                    v-if="category.gambar_url"
-                                    :src="category.gambar_url"
-                                    class="w-full h-full object-cover"
-                                />
-                                <Layers v-else class="w-5 h-5 text-gray-300" />
-                            </div>
-                            <span
-                                class="text-[11px] font-medium max-w-[64px] truncate"
-                                :class="
-                                    selectedCategory === category.code
-                                        ? 'text-blue-600'
-                                        : 'text-gray-500'
-                                "
+                                <span>Semua Kategori</span>
+                                <span class="text-[10px] opacity-80">({{ categories.length }})</span>
+                            </button>
+
+                            <button
+                                v-for="cat in categories"
+                                :key="cat.code"
+                                type="button"
+                                @click="selectCategory(cat.code)"
+                                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition"
+                                :class="selectedCategory === cat.code ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'text-slate-600 hover:bg-slate-100'"
                             >
-                                {{ category.name }}
+                                <span class="truncate">{{ cat.name }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Right Main Variant Product Catalog Grid -->
+                <main class="flex-1 w-full space-y-5">
+                    
+                    <!-- Sorting Bar & View Switcher -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                        <div class="flex items-center space-x-2">
+                            <h3 class="font-extrabold text-slate-900 text-base">
+                                {{ selectedCategory ? `Hasil Varian ${getCategoryName(selectedCategory)}` : 'Hasil Varian Barang' }}
+                            </h3>
+                            <span class="bg-indigo-50 text-indigo-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-indigo-100">
+                                {{ variantList?.total || variantList?.data?.length || 0 }} Varian Ditemukan
                             </span>
-                        </button>
+                        </div>
+
+                        <!-- Grid / List Mode Toggle Buttons -->
+                        <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                            <button
+                                type="button"
+                                @click="viewMode = 'grid'"
+                                class="p-1.5 rounded-lg transition font-bold text-xs flex items-center space-x-1 cursor-pointer"
+                                :class="viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-2xs' : 'text-slate-500 hover:text-slate-900'"
+                                title="Tampilan Grid Matrix"
+                            >
+                                <Grid class="w-4 h-4" />
+                                <span class="hidden sm:inline">Grid</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="viewMode = 'list'"
+                                class="p-1.5 rounded-lg transition font-bold text-xs flex items-center space-x-1 cursor-pointer"
+                                :class="viewMode === 'list' ? 'bg-white text-indigo-600 shadow-2xs' : 'text-slate-500 hover:text-slate-900'"
+                                title="Tampilan List Tabel"
+                            >
+                                <List class="w-4 h-4" />
+                                <span class="hidden sm:inline">Tabel List</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <div
-                    v-if="image_keyword"
-                    class="my-2 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-2xl px-4 py-2.5 text-sm"
-                >
-                    Keyword dari gambar:
-                    <span class="font-semibold">{{ image_keyword }}</span>
-                </div>
-
-                <div
-                    v-if="image_keyword"
-                    class="mb-3 bg-white border border-indigo-100 rounded-3xl p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-                >
-                    <div>
-                        <h3 class="font-bold text-gray-900">
-                            Barang yang dicari tidak ada?
-                        </h3>
-
-                        <p class="text-sm text-gray-500">
-                            Anda tetap bisa memasukkan hasil foto ke keranjang
-                            sebagai
-                            <b>permintaan barang baru</b>.
-                        </p>
-                    </div>
-
-                    <Button
-                        type="button"
-                        class="bg-indigo-700 text-white rounded-2xl"
-                        @click="addBarangBaruToCart"
-                    >
-                        <Plus class="w-4 h-4 mr-2" />
-                        Masukkan Keranjang Hasil Foto
-                    </Button>
-                </div>
-                <div class="my-2">
-                    <!-- Header & Tombol Reset -->
-                    <!-- Layout Utama: Sidebar & Area Konten (Horizontal Scroll) -->
-                    <div class="flex flex-col lg:flex-row gap-3 items-start">
-                        <!-- Sidebar: Filter (Teks, Gambar) & Kategori -->
-                        <aside
-                            class="w-full lg:w-72 bg-gray-50 rounded-3xl border border-gray-100 p-3 h-fit lg:sticky lg:top-6 flex-shrink-0 shadow-sm space-y-3"
+                    <!-- 1. GRID VIEW MODE (Product Variant Cards) -->
+                    <div v-if="variantList?.data?.length && viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4 gap-4 md:gap-5">
+                        <div
+                            v-for="detail in variantList.data"
+                            :key="detail.id_produk_detail"
+                            class="group bg-white rounded-3xl border shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between"
+                            :class="(variantQty[detail.id_produk_detail] || 0) > 0 ? 'border-indigo-600 ring-2 ring-indigo-600/20' : 'border-slate-200/80 hover:border-indigo-400'"
                         >
-                            <!-- Filter: Berdasarkan Nama / Kode -->
-                            <div class="px-2">
-                                <label
-                                    class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2"
-                                >
-                                    Cari Nama / Kode
-                                </label>
-                                <div class="relative">
-                                    <Search
-                                        class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                            <div>
+                                <!-- Image Container -->
+                                <div class="aspect-square bg-slate-50 relative overflow-hidden cursor-pointer" @click="openQuickView(detail)">
+                                    <img
+                                        v-if="detail.gambars?.[0]"
+                                        :src="`/storage/${detail.gambars[0].path_file}`"
+                                        class="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                                     />
-                                    <Input
-                                        v-model="params.search"
-                                        @keyup.enter="searchData"
-                                        placeholder="Contoh: botol, tumbler..."
-                                        class="pl-11 pr-10 h-12 rounded-xl text-sm border-gray-200 focus:border-blue-600 focus:ring-blue-600/20 w-full bg-white"
-                                    />
+                                    <div v-else class="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-300 gap-1">
+                                        <ImageOff class="w-8 h-8" />
+                                        <span class="text-[10px] text-slate-400">Belum ada foto</span>
+                                    </div>
+
+                                    <!-- Category Pill Badge -->
+                                    <div v-if="detail.category?.categoryname" class="absolute top-3 left-3 bg-white/95 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[10px] font-bold text-indigo-700 border border-slate-200/60 shadow-xs">
+                                        {{ detail.category.categoryname }}
+                                    </div>
+
+                                    <!-- Quick View Overlay Button -->
                                     <button
-                                        v-if="params.search"
                                         type="button"
-                                        @click="resetSearch"
-                                        class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition duration-200 p-1"
-                                        title="Bersihkan pencarian"
+                                        @click.stop="openQuickView(detail)"
+                                        class="absolute bottom-3 right-3 bg-slate-900/80 hover:bg-slate-900 text-white p-2 rounded-xl backdrop-blur transition-all opacity-0 group-hover:opacity-100 shadow-md"
+                                        title="Quick View Detail Varian"
                                     >
-                                        ✕
+                                        <Eye class="w-4 h-4" />
                                     </button>
                                 </div>
 
-                                <div
-                                    v-if="appliedSearch"
-                                    class="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-200/60 text-xs text-gray-500"
-                                >
-                                    <div
-                                        class="flex items-center gap-1.5 flex-wrap"
-                                    >
-                                        <span>Keyword:</span>
-                                        <span
-                                            class="bg-blue-50 border border-blue-100 text-blue-700 font-semibold px-2.5 py-0.5 rounded-full"
-                                        >
-                                            "{{ appliedSearch }}"
+                                <!-- Card Details Info -->
+                                <div class="p-4 space-y-2">
+                                    <h4 class="font-bold text-slate-900 text-sm line-clamp-2 min-h-[40px] group-hover:text-indigo-600 transition cursor-pointer" @click="openQuickView(detail)">
+                                        {{ variantLabel(detail) }}
+                                    </h4>
+
+                                    <!-- Rating & Stok -->
+                                    <div class="flex items-center space-x-1.5 text-[11px] text-slate-500 font-medium">
+                                        <span class="flex items-center text-amber-500 font-bold">
+                                            <Star class="w-3.5 h-3.5 fill-amber-400 mr-0.5" />
+                                            4.9
                                         </span>
+                                        <span>•</span>
+                                        <span>Stok: <b class="text-slate-800">{{ detail.barang?.stok ?? 0 }}</b></span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        @click="resetSearch"
-                                        class="text-red-600 hover:underline font-medium"
-                                    >
-                                        Reset
-                                    </button>
+
+                                    <!-- Price & Location -->
+                                    <div class="space-y-0.5 pt-1">
+                                        <div class="text-indigo-700 font-black text-base">
+                                            {{ rupiah(detail.barang?.harga_jual) }}
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 font-semibold flex items-center">
+                                            <span>📍 Gudang GSOS Pusat</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Filter: Berdasarkan Foto Produk -->
-                            <form
-                                @submit.prevent="searchByImage"
-                                class="px-2 pt-1 border-t border-gray-200/60"
-                            >
-                                <label
-                                    class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2 mt-4"
-                                >
-                                    Cari dengan Foto
-                                </label>
-
-                                <label
-                                    v-if="!previewImage"
-                                    class="border-2 border-dashed border-gray-300 hover:border-indigo-500 hover:bg-indigo-50/50 transition rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer bg-white aspect-square"
-                                >
-                                    <UploadCloud
-                                        class="w-8 h-8 text-indigo-600 mb-2"
-                                    />
-                                    <span
-                                        class="text-xs font-semibold text-gray-700"
-                                        >Upload Gambar</span
-                                    >
-                                    <span class="text-[11px] text-gray-400 mt-1"
-                                        >Klik untuk memilih foto</span
-                                    >
-
-                                    <input
-                                        name="image"
-                                        type="file"
-                                        accept="image/*"
-                                        class="hidden"
-                                        @change="handleImage"
-                                    />
-                                </label>
-
-                                <div
-                                    v-else
-                                    class="relative rounded-2xl overflow-hidden border bg-white flex items-center justify-center aspect-square p-2"
-                                >
-                                    <img
-                                        :src="previewImage"
-                                        class="max-w-full max-h-full object-contain"
-                                    />
-
+                            <!-- Qty Selector & Action Buttons -->
+                            <div class="p-4 pt-0 space-y-2">
+                                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-1.5">
                                     <button
                                         type="button"
-                                        class="absolute top-2 right-2 bg-black/60 hover:bg-black text-white p-1.5 rounded-full transition"
-                                        @click="clearImage"
-                                        title="Hapus gambar"
+                                        class="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition shadow-2xs font-bold"
+                                        @click="changeVariantQty(detail, -1)"
                                     >
-                                        <X class="w-4 h-4" />
+                                        <Minus class="w-3.5 h-3.5" />
+                                    </button>
+                                    <span class="text-xs font-extrabold text-slate-900">
+                                        {{ variantQty[detail.id_produk_detail] || 0 }}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        class="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition shadow-2xs font-bold"
+                                        @click="changeVariantQty(detail, 1)"
+                                    >
+                                        <Plus class="w-3.5 h-3.5" />
                                     </button>
                                 </div>
 
                                 <Button
-                                    type="submit"
-                                    class="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-10 text-xs md:text-sm font-medium shadow-sm"
-                                    :disabled="
-                                        !imageForm.image || imageForm.processing
-                                    "
-                                >
-                                    {{
-                                        imageForm.processing
-                                            ? "Mencari..."
-                                            : "Cari dengan Gambar"
-                                    }}
-                                </Button>
-                                <p
-                                    v-if="imageForm.errors.image"
-                                    class="text-xs text-red-500 mt-1"
-                                >
-                                    {{ imageForm.errors.image }}
-                                </p>
-                            </form>
-
-                            <div class="hidden lg:block px-2 pt-1 border-t border-gray-200/60">
-                                <div
-                                    class="flex items-center gap-2 mb-3 mt-4"
-                                >
-                                    <Layers class="w-5 h-5 text-blue-600" />
-                                    <h4 class="font-bold text-gray-900">
-                                        Kategori
-                                    </h4>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <!-- Semua Kategori -->
-                                    <button
-                                        type="button"
-                                        @click="selectCategory('')"
-                                        class="w-full text-left px-4 py-2.5 rounded-2xl text-sm transition font-medium"
-                                        :class="
-                                            !selectedCategory
-                                                ? 'bg-blue-600 text-white font-semibold shadow-sm'
-                                                : 'text-gray-600 hover:bg-white hover:text-blue-600'
-                                        "
-                                    >
-                                        Semua Kategori
-                                    </button>
-
-                                    <!-- List Kategori -->
-                                    <button
-                                        v-for="category in categories"
-                                        :key="category.code"
-                                        type="button"
-                                        @click="selectCategory(category.code)"
-                                        class="w-full text-left px-4 py-2.5 rounded-2xl text-sm transition font-medium"
-                                        :class="
-                                            selectedCategory === category.code
-                                                ? 'bg-blue-600 text-white font-semibold shadow-sm'
-                                                : 'text-gray-600 hover:bg-white hover:text-blue-600'
-                                        "
-                                    >
-                                        {{ category.name }}
-                                    </button>
-                                </div>
-                            </div>
-                        </aside>
-
-                        <!-- Area Card Tipe / Varian / Empty State -->
-                        <div class="flex-grow w-full">
-                            <!-- Breadcrumb tipe terpilih -->
-                            <div
-                                v-if="selectedTipe"
-                                class="flex items-center gap-3 mb-4"
-                            >
-                                <button
                                     type="button"
-                                    class="flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:underline shrink-0"
-                                    @click="backToTipe"
+                                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs py-2 font-bold shadow-2xs flex items-center justify-center"
+                                    @click="addSingleVariantToCart(detail)"
                                 >
-                                    <ArrowLeft class="w-4 h-4" />
-                                    Kembali ke Tipe
-                                </button>
-                                <span class="text-gray-300">/</span>
-                                <h3 class="font-bold text-gray-900 truncate">
-                                    {{ selectedTipe.nama }}
-                                </h3>
+                                    <ShoppingCart class="w-3.5 h-3.5 mr-1.5" />
+                                    + Keranjang
+                                </Button>
                             </div>
-
-                            <!-- Level 1: Grid Tipe -->
-                            <template v-if="!selectedTipe">
-                                <hr class="mb-4" />
-                                <div
-                                    v-if="tipeList?.data?.length"
-                                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4"
-                                >
-                                    <button
-                                        type="button"
-                                        v-for="tipe in tipeList.data"
-                                        :key="tipe.id_tipe"
-                                        class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group flex flex-col text-left"
-                                        @click="openTipe(tipe)"
-                                    >
-                                        <!-- Gambar & Badge Jumlah Varian -->
-                                        <div
-                                            class="aspect-square bg-gray-100 relative overflow-hidden"
-                                        >
-                                            <img
-                                                v-if="getTipeImage(tipe)"
-                                                :src="getTipeImage(tipe)"
-                                                class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                            />
-
-                                            <div
-                                                v-else
-                                                class="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"
-                                            >
-                                                <ImageOff class="w-8 h-8" />
-                                                <span class="text-[10px] font-medium">
-                                                    Belum ada gambar
-                                                </span>
-                                            </div>
-
-                                            <div
-                                                class="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-[10px] font-semibold shadow-sm"
-                                            >
-                                                {{ tipe.details?.length || 0 }} varian
-                                            </div>
-                                        </div>
-
-                                        <!-- Informasi Detail Card -->
-                                        <div class="p-3 flex flex-col flex-grow">
-                                            <h4
-                                                class="font-semibold text-gray-900 text-sm line-clamp-2 min-h-[40px]"
-                                            >
-                                                {{ tipe.nama }}
-                                            </h4>
-
-                                            <div
-                                                class="mt-3 w-full text-center rounded-xl text-xs h-9 flex items-center justify-center border border-blue-100 text-blue-700 font-medium group-hover:bg-blue-50 transition"
-                                            >
-                                                Lihat Varian
-                                            </div>
-                                        </div>
-                                    </button>
-                                </div>
-
-                                <!-- Kondisi: Tipe Tidak Ditemukan (Empty State) -->
-                                <div
-                                    v-else
-                                    class="bg-white rounded-3xl border border-red-100 shadow-sm p-8 md:p-12 text-center"
-                                >
-                                    <Package
-                                        class="w-16 h-16 mx-auto text-red-300 mb-4"
-                                    />
-
-                                    <h3 class="font-bold text-red-700 text-lg">
-                                        Tipe tidak ditemukan
-                                    </h3>
-
-                                    <p
-                                        class="text-sm text-gray-500 mt-2 max-w-md mx-auto"
-                                    >
-                                        Tidak ada tipe produk yang cocok dengan
-                                        pencarian Anda.
-                                    </p>
-
-                                    <p
-                                        v-if="image_keyword"
-                                        class="text-sm text-gray-400 mt-2"
-                                    >
-                                        Keyword dari gambar:
-                                        <span class="font-semibold text-gray-700">{{
-                                            image_keyword
-                                        }}</span>
-                                    </p>
-
-                                    <p
-                                        class="text-sm text-blue-600 mt-3 max-w-md mx-auto bg-blue-50 p-3 rounded-2xl border border-blue-100"
-                                    >
-                                        Anda tetap dapat membuat permintaan barang
-                                        baru. Gambar yang diupload akan disimpan
-                                        sebagai referensi untuk admin.
-                                    </p>
-
-                                    <div
-                                        class="flex flex-col md:flex-row justify-center gap-3 mt-6"
-                                    >
-                                        <Button
-                                            type="button"
-                                            class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl shadow-sm"
-                                            @click="addBarangBaruToCart"
-                                            :disabled="barangBaruForm.processing"
-                                        >
-                                            <Plus class="w-4 h-4 mr-2" />
-                                            {{
-                                                barangBaruForm.processing
-                                                    ? "Memasukkan..."
-                                                    : "Masukkan sebagai Barang Baru"
-                                            }}
-                                        </Button>
-
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            class="rounded-2xl"
-                                            @click="resetSearch"
-                                        >
-                                            Reset
-                                        </Button>
-                                    </div>
-                                </div>
-                            </template>
-
-                            <!-- Level 2: Flat Grid Varian dari tipe terpilih -->
-                            <template v-else>
-                                <div
-                                    v-if="variantList?.data?.length"
-                                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4"
-                                >
-                                    <div
-                                        v-for="detail in variantList.data"
-                                        :key="detail.id_produk_detail"
-                                        class="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col transition"
-                                        :class="
-                                            (variantQty[detail.id_produk_detail] || 0) > 0
-                                                ? 'border-blue-600 ring-1 ring-blue-600'
-                                                : 'border-gray-100'
-                                        "
-                                    >
-                                        <div
-                                            class="aspect-square bg-gray-100 relative overflow-hidden"
-                                        >
-                                            <img
-                                                v-if="detail.gambars?.[0]"
-                                                :src="`/storage/${detail.gambars[0].path_file}`"
-                                                class="w-full h-full object-cover"
-                                            />
-
-                                            <div
-                                                v-else
-                                                class="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1"
-                                            >
-                                                <ImageOff class="w-8 h-8" />
-                                                <span class="text-[10px] font-medium">
-                                                    Belum ada gambar
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div class="p-3 flex flex-col flex-grow">
-                                            <h4
-                                                class="font-semibold text-gray-900 text-sm line-clamp-2 min-h-[40px]"
-                                            >
-                                                {{ variantLabel(detail) }}
-                                            </h4>
-
-                                            <div
-                                                class="text-blue-600 font-bold text-sm mt-1.5"
-                                            >
-                                                {{ rupiah(detail.barang?.harga_jual) }}
-                                            </div>
-
-                                            <div class="text-xs text-gray-500 mt-0.5">
-                                                Stok: {{ detail.barang?.stok ?? 0 }}
-                                            </div>
-
-                                            <div
-                                                class="flex items-center justify-between gap-1 mt-3"
-                                            >
-                                                <button
-                                                    type="button"
-                                                    class="w-8 h-8 rounded-lg border flex items-center justify-center shrink-0"
-                                                    @click="changeVariantQty(detail, -1)"
-                                                >
-                                                    <Minus class="w-3.5 h-3.5" />
-                                                </button>
-
-                                                <span class="text-sm font-semibold">
-                                                    {{
-                                                        variantQty[detail.id_produk_detail] ||
-                                                        0
-                                                    }}
-                                                </span>
-
-                                                <button
-                                                    type="button"
-                                                    class="w-8 h-8 rounded-lg border flex items-center justify-center shrink-0"
-                                                    @click="changeVariantQty(detail, 1)"
-                                                >
-                                                    <Plus class="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Kondisi: Varian Tidak Ditemukan (Empty State) -->
-                                <div
-                                    v-else
-                                    class="bg-white rounded-3xl border border-red-100 shadow-sm p-8 md:p-12 text-center"
-                                >
-                                    <Package
-                                        class="w-16 h-16 mx-auto text-red-300 mb-4"
-                                    />
-
-                                    <h3 class="font-bold text-red-700 text-lg">
-                                        Varian tidak ditemukan
-                                    </h3>
-
-                                    <p
-                                        class="text-sm text-gray-500 mt-2 max-w-md mx-auto"
-                                    >
-                                        Tidak ada varian yang cocok untuk tipe ini.
-                                    </p>
-                                </div>
-                            </template>
                         </div>
                     </div>
 
-                    <!-- Pagination Links -->
-                    <div
-                        v-if="
-                            (!selectedTipe && tipeList?.links?.length) ||
-                            (selectedTipe && variantList?.links?.length)
-                        "
-                        class="mt-4 flex flex-wrap gap-2 justify-center"
-                    >
+                    <!-- 2. LIST VIEW MODE (Compact Table List) -->
+                    <div v-else-if="variantList?.data?.length && viewMode === 'list'" class="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 border-b border-slate-200 font-bold text-slate-700 uppercase tracking-wider">
+                                    <tr>
+                                        <th class="p-3.5">Varian Barang</th>
+                                        <th class="p-3.5">SKU & Kategori</th>
+                                        <th class="p-3.5">Spesifikasi</th>
+                                        <th class="p-3.5">Harga Varian</th>
+                                        <th class="p-3.5 text-center">Stok</th>
+                                        <th class="p-3.5 text-center">Jumlah Qty</th>
+                                        <th class="p-3.5 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <tr v-for="detail in variantList.data" :key="detail.id_produk_detail" class="hover:bg-slate-50/80 transition">
+                                        <td class="p-3.5">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                                                    <img v-if="detail.gambars?.[0]" :src="`/storage/${detail.gambars[0].path_file}`" class="w-full h-full object-cover" />
+                                                    <ImageOff v-else class="w-5 h-5 text-slate-300 m-auto mt-2.5" />
+                                                </div>
+                                                <div>
+                                                    <h5 class="font-bold text-slate-900 text-xs">{{ variantLabel(detail) }}</h5>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="p-3.5">
+                                            <div class="font-mono text-slate-700 font-bold text-[11px]">{{ detail.barang?.kode_barang || detail.kode_barang }}</div>
+                                            <span v-if="detail.category?.categoryname" class="text-[10px] font-bold text-indigo-600">
+                                                {{ detail.category.categoryname }}
+                                            </span>
+                                        </td>
+                                        <td class="p-3.5">
+                                            <div class="flex flex-wrap gap-1 text-[10px]">
+                                                <span v-if="detail.ukuran?.nama" class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                                    Ukuran: {{ detail.ukuran.nama }}
+                                                </span>
+                                                <span v-if="detail.satuan?.nama || detail.uom?.nama_uom" class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                                    Satuan: {{ detail.satuan?.nama || detail.uom?.nama_uom }}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td class="p-3.5 font-bold text-indigo-700 text-sm whitespace-nowrap">
+                                            {{ rupiah(detail.barang?.harga_jual) }}
+                                        </td>
+                                        <td class="p-3.5 text-center whitespace-nowrap">
+                                            <span class="text-[11px] font-bold px-2 py-0.5 rounded-md" :class="(detail.barang?.stok ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-500'">
+                                                {{ detail.barang?.stok ?? 0 }}
+                                            </span>
+                                        </td>
+                                        <td class="p-3.5">
+                                            <div class="flex items-center justify-center space-x-1.5">
+                                                <button type="button" class="w-6 h-6 rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold hover:bg-slate-200" @click="changeVariantQty(detail, -1)">-</button>
+                                                <span class="w-8 text-center font-bold text-xs text-slate-900">{{ variantQty[detail.id_produk_detail] || 0 }}</span>
+                                                <button type="button" class="w-6 h-6 rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold hover:bg-slate-200" @click="changeVariantQty(detail, 1)">+</button>
+                                            </div>
+                                        </td>
+                                        <td class="p-3.5 text-right whitespace-nowrap">
+                                            <Button type="button" size="sm" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold" @click="addSingleVariantToCart(detail)">
+                                                + Keranjang
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div v-else class="bg-white rounded-3xl border border-slate-200 p-12 text-center shadow-xs space-y-3">
+                        <Package class="w-16 h-16 mx-auto text-slate-300" />
+                        <h3 class="font-bold text-slate-900 text-base">Varian Barang Tidak Ditemukan</h3>
+                        <p class="text-xs text-slate-500 max-w-md mx-auto">Tidak ada varian produk yang sesuai dengan filter Anda.</p>
+                        <Button type="button" class="bg-indigo-600 text-white rounded-xl text-xs font-bold" @click="resetSearch">
+                            Reset Pencarian
+                        </Button>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div v-if="variantList?.links?.length" class="pt-4 flex justify-center gap-1.5 flex-wrap">
                         <Link
-                            v-for="(link, index) in selectedTipe
-                                ? variantList.links
-                                : tipeList.links"
-                            :key="index"
+                            v-for="(link, idx) in variantList.links"
+                            :key="idx"
                             :href="link.url ?? '#'"
                         >
                             <Button
                                 size="sm"
                                 :variant="link.active ? 'default' : 'outline'"
                                 :disabled="!link.url"
-                                class="rounded-xl"
+                                class="rounded-xl text-xs font-bold"
                                 v-html="link.label"
                             />
                         </Link>
                     </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- Sticky Bottom Cart Action Bar -->
+        <div v-if="totalSelectedQty > 0" class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl px-6 py-4 flex items-center justify-between max-w-[1800px] mx-auto">
+            <div class="text-xs sm:text-sm text-slate-600">
+                Total Varian Dipilih: <span class="font-bold text-slate-900 text-base">{{ totalSelectedQty }}</span> pcs
+            </div>
+
+            <Button
+                class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 py-2.5 font-bold shadow-md"
+                :disabled="bulkAddForm.processing"
+                @click="addSelectedVariantsToCart"
+            >
+                <ShoppingCart class="w-4 h-4 mr-2" />
+                {{ bulkAddForm.processing ? "Memproses..." : "Tambahkan ke Keranjang" }}
+            </Button>
+        </div>
+
+        <!-- Quick View Modal for Variant -->
+        <div v-if="quickViewVariant" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" @click="closeQuickView">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col border border-slate-200" @click.stop>
+                <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full">
+                        Detail Varian Produk
+                    </span>
+                    <button type="button" @click="closeQuickView" class="text-slate-400 hover:text-slate-900 p-1">
+                        <X class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <div class="aspect-square w-48 h-48 mx-auto bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center">
+                        <img v-if="quickViewVariant.gambars?.[0]" :src="`/storage/${quickViewVariant.gambars[0].path_file}`" class="w-full h-full object-cover" />
+                        <ImageOff v-else class="w-12 h-12 text-slate-300" />
+                    </div>
+
+                    <div class="space-y-2 text-center">
+                        <h3 class="font-extrabold text-slate-900 text-base">
+                            {{ variantLabel(quickViewVariant) }}
+                        </h3>
+                        <div class="text-indigo-700 font-black text-xl">
+                            {{ rupiah(quickViewVariant.barang?.harga_jual) }}
+                        </div>
+                        <p class="text-xs text-slate-500">
+                            Kode SKU: <span class="font-mono font-bold text-slate-800">{{ quickViewVariant.barang?.kode_barang || quickViewVariant.kode_barang }}</span>
+                        </p>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-xs font-bold text-slate-700">Jumlah Pesanan Qty:</span>
+                        <div class="flex items-center space-x-2 border border-slate-200 rounded-xl p-1 bg-slate-50">
+                            <button type="button" @click="quickViewQty = Math.max(1, quickViewQty - 1)" class="w-8 h-8 bg-white rounded-lg border border-slate-200 flex items-center justify-center font-bold text-slate-700 font-bold">
+                                -
+                            </button>
+                            <span class="text-sm font-extrabold px-3">{{ quickViewQty }}</span>
+                            <button type="button" @click="quickViewQty++" class="w-8 h-8 bg-white rounded-lg border border-slate-200 flex items-center justify-center font-bold text-slate-700 font-bold">
+                                +
+                            </button>
+                        </div>
+                    </div>
+
+                    <Button type="button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold shadow-md" @click="addQuickViewToCart">
+                        <ShoppingCart class="w-4 h-4 mr-2" />
+                        + Masukkan Keranjang
+                    </Button>
                 </div>
             </div>
         </div>
 
-        <!-- Bar bawah: tambah varian terpilih ke keranjang (hanya level 2) -->
-        <div
-            v-if="selectedTipe"
-            class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t shadow-2xl px-6 py-4 flex items-center justify-between gap-4 pr-24 md:pr-28"
-        >
-            <div class="text-sm text-gray-600">
-                <span class="font-semibold text-gray-900">
-                    {{ totalSelectedQty }}
-                </span>
-                pcs dipilih
-            </div>
-
-            <Button
-                class="bg-blue-700 hover:bg-blue-800 text-white rounded-2xl px-6"
-                :disabled="totalSelectedQty === 0 || bulkAddForm.processing"
-                @click="addSelectedVariantsToCart"
-            >
-                <ShoppingCart class="w-4 h-4 mr-2" />
-                {{
-                    bulkAddForm.processing
-                        ? "Memasukkan..."
-                        : "Tambah ke Keranjang"
-                }}
-            </Button>
-        </div>
-
-        <div
-            v-if="showCart"
-            class="fixed inset-0 z-50 bg-black/50 flex justify-end"
-        >
-            <div
-                class="bg-white w-full max-w-md h-full shadow-2xl flex flex-col"
-            >
-                <div class="p-5 border-b flex items-center justify-between">
+        <!-- Slide-over Cart Drawer -->
+        <div v-if="showCart" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end" @click="showCart = false">
+            <div class="bg-white w-full max-w-md h-full shadow-2xl flex flex-col" @click.stop>
+                <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                     <div>
-                        <h3 class="font-bold text-lg text-gray-900">
-                            Keranjang
+                        <h3 class="font-extrabold text-lg text-slate-900 flex items-center space-x-2">
+                            <ShoppingCart class="w-5 h-5 text-indigo-600" />
+                            <span>Keranjang Pengadaan</span>
                         </h3>
-                        <p class="text-sm text-gray-400">
-                            {{ totalCartQty }} item kebutuhan
-                        </p>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ totalCartQty }} item siap diajukan SPK</p>
                     </div>
-
-                    <button
-                        type="button"
-                        class="p-2 rounded-full hover:bg-gray-100"
-                        @click="showCart = false"
-                    >
+                    <button type="button" class="p-2 rounded-full hover:bg-slate-200 text-slate-500" @click="showCart = false">
                         <X class="w-5 h-5" />
                     </button>
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-5 space-y-6">
-                    <div
-                        v-if="!cartItems.length"
-                        class="text-center py-12 text-gray-400"
-                    >
-                        <ShoppingCart class="w-12 h-12 mx-auto mb-3" />
-                        <p class="text-sm">Keranjang masih kosong.</p>
+                    
+                    <!-- Helper Notice Box for Uploading Multiple Photos in Cart Drawer -->
+                    <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 space-y-1.5 shadow-2xs">
+                        <div class="flex items-center space-x-2 text-amber-900 font-extrabold text-xs">
+                            <Info class="w-4 h-4 text-indigo-600 shrink-0" />
+                            <span>💡 PETUNJUK FOTO SAMPEL BARANG:</span>
+                        </div>
+                        <p class="text-[11px] text-slate-700 leading-relaxed font-medium">
+                            Anda dapat mengunggah <b>satu atau beberapa foto sampel</b> untuk setiap item di keranjang ini. Klik tombol <b>"+ Upload Multiple Foto Sampel"</b> pada masing-masing barang di bawah ini.
+                        </p>
                     </div>
 
-                    <div
-                        v-for="group in groupedCartItems"
-                        :key="group.key"
-                        class="space-y-3"
-                    >
-                        <h4
-                            class="font-bold text-sm text-gray-900 px-1 flex items-center gap-2"
-                        >
-                            <Package class="w-4 h-4 text-blue-600 shrink-0" />
-                            {{ group.label }}
+                    <input
+                        ref="cartItemFileInput"
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        class="hidden"
+                        @change="handleItemMultipleImageUpload"
+                    />
+
+                    <div v-if="!cartItems.length" class="text-center py-16 text-slate-400 space-y-2">
+                        <ShoppingCart class="w-12 h-12 mx-auto text-slate-300" />
+                        <p class="text-sm font-semibold">Keranjang pengadaan masih kosong.</p>
+                    </div>
+
+                    <div v-for="group in groupedCartItems" :key="group.key" class="space-y-3">
+                        <h4 class="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center space-x-1.5 border-b border-slate-100 pb-1">
+                            <Package class="w-3.5 h-3.5 text-indigo-600" />
+                            <span>{{ group.label }}</span>
                         </h4>
 
-                        <div
-                            v-for="item in group.items"
-                            :key="item.id_keranjang_detail"
-                            class="border rounded-2xl p-4"
-                        >
-                            <div class="flex gap-3">
-                                <div>
-                                    <div
-                                        v-if="item.tipe_item === 'barang_baru'"
-                                        class="relative w-16 h-16 cursor-pointer"
-                                        @click="openUpload(item)"
-                                    >
-                                        <template v-if="item.gambar?.length">
-                                            <img
-                                                v-for="(
-                                                    img, index
-                                                ) in item.gambar.slice(0, 3)"
-                                                :key="img.id_gambar"
-                                                :src="`/storage/${img.gambar}`"
-                                                class="absolute w-14 h-14 object-contain rounded-xl border-2 border-white shadow-lg transition-all duration-200 hover:z-50"
-                                                :style="{
-                                                    left: `${index * 6}px`,
-                                                    top: `${index * 4}px`,
-                                                    zIndex: index + 1,
-                                                    transform: `rotate(${(index - 1) * 4}deg)`,
-                                                }"
-                                                @click.stop="
-                                                    openPreview(item, index)
-                                                "
-                                            />
-
-                                            <div
-                                                v-if="item.gambar.length > 3"
-                                                class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center border-2 border-white shadow"
-                                            >
-                                                +{{ item.gambar.length - 3 }}
-                                            </div>
-                                        </template>
-
-                                        <div
-                                            v-else
-                                            class="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center border"
-                                        >
-                                            <ImagePlus
-                                                class="w-6 h-6 text-gray-400"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div
-                                        v-else
-                                        class="w-16 h-16 rounded-xl overflow-hidden border bg-gray-50 flex items-center justify-center pointer-events-none"
-                                    >
-                                        <img
-                                            v-if="getCartImage(item)"
-                                            :src="getCartImage(item)"
-                                            class="w-full h-full object-cover"
-                                        />
-                                        <Package
-                                            v-else
-                                            class="w-6 h-6 text-gray-400"
-                                        />
-                                    </div>
+                        <div v-for="item in group.items" :key="item.id_keranjang_detail" class="border border-slate-200 rounded-2xl p-3.5 space-y-2 bg-slate-50/50">
+                            <div class="flex gap-3 items-start">
+                                <div class="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-white flex items-center justify-center shrink-0">
+                                    <img v-if="getCartImage(item)" :src="getCartImage(item)" class="w-full h-full object-cover" />
+                                    <Package v-else class="w-6 h-6 text-slate-300" />
                                 </div>
-                                <div class="flex-1">
-                                    <Input
-                                        v-if="item.tipe_item === 'barang_baru'"
-                                        :model-value="item.nama_barang"
-                                        class="h-9 text-sm font-semibold"
-                                        @change="
-                                            updateNamaBarangBaru(
-                                                item,
-                                                $event.target.value,
-                                            )
-                                        "
-                                    />
 
-                                    <h4
-                                        v-else
-                                        class="font-semibold text-sm text-gray-900"
-                                    >
-                                        {{ item.nama_barang }}
-                                    </h4>
+                                <div class="flex-1 min-w-0">
+                                    <h5 class="font-bold text-xs text-slate-900 truncate">{{ item.nama_barang }}</h5>
+                                    <span class="text-[10px] font-semibold" :class="item.tipe_item === 'barang_baru' ? 'text-orange-600' : 'text-indigo-600'">
+                                        {{ item.tipe_item === 'barang_baru' ? 'Permintaan Barang Baru' : 'Barang Terdaftar' }}
+                                    </span>
 
-                                    <p
-                                        class="text-xs mt-1"
-                                        :class="
-                                            item.tipe_item === 'barang_baru'
-                                                ? 'text-orange-600'
-                                                : 'text-blue-600'
-                                        "
-                                    >
-                                        {{
-                                            item.tipe_item === "barang_baru"
-                                                ? "Permintaan barang baru"
-                                                : "Barang tersedia"
-                                        }}
-                                    </p>
-
-                                    <div class="flex items-center gap-2 mt-3">
-                                        <button
-                                            type="button"
-                                            class="w-8 h-8 rounded-lg border"
-                                            @click="
-                                                updateCartQty(
-                                                    item,
-                                                    Number(item.qty) - 1,
-                                                )
-                                            "
-                                        >
+                                    <div class="flex items-center space-x-2 mt-2">
+                                        <button type="button" class="w-6 h-6 rounded-md bg-white border border-slate-300 flex items-center justify-center text-xs font-bold" @click="updateCartQty(item, Number(item.qty) - 1)">
                                             -
                                         </button>
-
-                                        <Input
-                                            :model-value="item.qty"
-                                            type="number"
-                                            min="1"
-                                            class="w-16 h-8 text-center"
-                                            @change="
-                                                updateCartQty(
-                                                    item,
-                                                    Number($event.target.value),
-                                                )
-                                            "
-                                        />
-
-                                        <button
-                                            type="button"
-                                            class="w-8 h-8 rounded-lg border"
-                                            @click="
-                                                updateCartQty(
-                                                    item,
-                                                    Number(item.qty) + 1,
-                                                )
-                                            "
-                                        >
+                                        <span class="text-xs font-extrabold text-slate-900">{{ item.qty }}</span>
+                                        <button type="button" class="w-6 h-6 rounded-md bg-white border border-slate-300 flex items-center justify-center text-xs font-bold" @click="updateCartQty(item, Number(item.qty) + 1)">
                                             +
                                         </button>
+                                    </div>
+                                </div>
 
-                                        <span class="text-xs text-gray-400">
-                                            {{ item.satuan }}
-                                        </span>
+                                <button type="button" class="text-slate-400 hover:text-red-600 p-1" @click="removeCartItem(item)">
+                                    <X class="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <!-- Multiple Sample Photos Section for Cart Item -->
+                            <div class="pt-2 border-t border-slate-200/60 mt-2">
+                                <div v-if="item.gambar?.length" class="flex flex-wrap gap-1.5 mb-2">
+                                    <div
+                                        v-for="(img, idx) in item.gambar"
+                                        :key="idx"
+                                        class="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-white shadow-2xs relative"
+                                    >
+                                        <img :src="`/storage/${img.gambar}`" class="w-full h-full object-cover" />
                                     </div>
                                 </div>
 
                                 <button
                                     type="button"
-                                    class="text-red-500 self-start mt-1"
-                                    @click="removeCartItem(item)"
+                                    @click="triggerUploadItemGambar(item)"
+                                    class="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center space-x-1 hover:underline cursor-pointer"
                                 >
-                                    <X class="w-5 h-5" />
+                                    <UploadCloud class="w-3.5 h-3.5" />
+                                    <span>+ Upload Multiple Foto Sampel ({{ item.gambar?.length || 0 }} foto)</span>
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="p-5 border-t">
-                    <Button
-                        type="button"
-                        class="w-full bg-blue-700 text-white rounded-2xl h-12"
-                        :disabled="!cartItems.length"
-                        @click="pesanSekarang"
-                    >
-                        Pesan Sekarang
+                <div class="p-5 border-t border-slate-100 bg-white">
+                    <Button type="button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl h-12 font-bold shadow-md" :disabled="!cartItems.length" @click="pesanSekarang">
+                        Ajukan Ke Dokumen SPK
                     </Button>
                 </div>
             </div>
         </div>
     </AuthenticatedLayout>
-
-    <div
-        v-if="previewModalData.item"
-        class="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6"
-        @click="previewModalData.item = null"
-    >
-        <div
-            class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
-            @click.stop
-        >
-            <div
-                class="flex items-center justify-between px-6 py-5 border-b bg-gray-50"
-            >
-                <div>
-                    <h3 class="text-xl font-bold text-gray-900">
-                        {{ previewModalData.item.nama_barang }}
-                    </h3>
-
-                    <p class="text-sm text-gray-500 mt-1">
-                        {{ previewModalData.images.length }} Foto
-                    </p>
-                </div>
-
-                <button
-                    class="w-10 h-10 rounded-xl hover:bg-gray-200 transition flex items-center justify-center"
-                    @click="previewModalData.item = null"
-                >
-                    <X class="w-5 h-5" />
-                </button>
-            </div>
-
-            <div class="flex-1 overflow-y-auto p-6">
-                <div
-                    class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5"
-                >
-                    <div
-                        v-for="(img, index) in previewModalData.images"
-                        :key="index"
-                        class="group rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-xl transition"
-                    >
-                        <img
-                            :src="img"
-                            class="w-full aspect-square object-contain transition duration-300 group-hover:scale-105"
-                        />
-
-                        <div
-                            class="px-3 py-2 text-xs text-gray-500 border-t bg-gray-50"
-                        >
-                            Foto {{ index + 1 }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div
-                class="border-t bg-white px-6 py-5 flex justify-between items-center"
-            >
-                <div class="text-sm text-gray-500">
-                    Total Foto:
-                    <span class="font-semibold text-gray-900">
-                        {{ previewModalData.images.length }}
-                    </span>
-                </div>
-
-                <div class="flex gap-3">
-                    <Button
-                        variant="outline"
-                        class="rounded-2xl"
-                        @click="previewModalData.item = null"
-                    >
-                        Tutup
-                    </Button>
-
-                    <Button
-                        class="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl"
-                        @click="triggerUploadFromModal"
-                    >
-                        <ImagePlus class="w-4 h-4 mr-2" />
-                        Tambah Foto
-                    </Button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <input
-        ref="uploadInput"
-        type="file"
-        multiple
-        class="hidden"
-        @change="
-            (e) => {
-                console.log('CHANGE');
-                console.log(e.target.files);
-                uploadGambar(e);
-            }
-        "
-    />
 </template>

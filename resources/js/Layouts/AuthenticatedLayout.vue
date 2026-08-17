@@ -28,7 +28,12 @@ watch(() => page.props.flash, (flash) => {
         <Toast ref="toastRef" />
 
         <!-- Top Navbar -->
-        <Navbar :user="$page.props.auth.user" />
+        <Navbar
+            :user="$page.props.auth.user"
+            @open-login-modal="$emit('open-login-modal')"
+            @toggle-cart="$emit('toggle-cart')"
+            @open-image-search="$emit('open-image-search')"
+        />
 
         <!-- Redesigned Page Sub-Header -->
         <header v-if="$slots.header" class="bg-white border-b border-slate-200/80 shadow-xs py-3 md:py-4 px-3 sm:px-4 lg:px-6">
