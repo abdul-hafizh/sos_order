@@ -25,6 +25,21 @@ class User extends Authenticatable
         return $this->pwd;
     }
 
+    public function getRememberToken()
+    {
+        return null;
+    }
+
+    public function setRememberToken($value)
+    {
+        // Table t_user does not have remember_token column
+    }
+
+    public function getRememberTokenName()
+    {
+        return '';
+    }
+
     public function cabang()
     {
         return $this->belongsTo(Cabang::class, 'kode_cabang', 'kode_cabang');

@@ -145,67 +145,33 @@ class BarangController extends Controller
 
     public function dashboard(Request $request)
     {
-        $selectedTipe = $request->filled('id_tipe')
-            ? MasterTipe::findOrFail($request->id_tipe)
-            : null;
+        $variantList = MasterProdukDetail::query()
+            ->whereHas('barang')
+            ->with(['barang', 'gambars', 'produk', 'satuan', 'berat', 'ukuran', 'warna', 'karakter', 'uom', 'tipe'])
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $keywords = preg_split('/[\s,]+/', $request->search);
 
-        $tipeList = null;
-        $variantList = null;
+                $query->where(function ($q) use ($keywords) {
+                    foreach ($keywords as $keyword) {
+                        $keyword = trim($keyword);
 
-        if (!$selectedTipe) {
-            // Level 1: grid tipe yang punya data di master_produk_detail
-            $tipeList = MasterTipe::query()
-                ->whereHas('details.barang')
-                ->with(['details.gambars'])
-                ->when($request->filled('search'), function ($query) use ($request) {
-                    $keywords = preg_split('/[\s,]+/', $request->search);
-
-                    $query->where(function ($q) use ($keywords) {
-                        foreach ($keywords as $keyword) {
-                            $keyword = trim($keyword);
-
-                            if ($keyword === '') {
-                                continue;
-                            }
-
-                            $this->applyTipeKeywordMatch($q, $keyword);
+                        if ($keyword === '') {
+                            continue;
                         }
-                    });
-                })
-                ->when($request->filled('category_code'), function ($query) use ($request) {
-                    $query->whereHas('details', fn($q) => $q->where('category_id', $request->category_code));
-                })
-                ->orderByDesc('created_at')
-                ->paginate(12)
-                ->withQueryString();
-        } else {
-            // Level 2: flat semua varian (master_produk_detail) dari tipe terpilih, lintas induk
-            $variantList = MasterProdukDetail::query()
-                ->where('id_tipe', $selectedTipe->id_tipe)
-                ->whereHas('barang')
-                ->with(['barang', 'gambars', 'produk', 'satuan', 'berat', 'ukuran', 'warna', 'karakter', 'uom'])
-                ->when($request->filled('search'), function ($query) use ($request) {
-                    $keywords = preg_split('/[\s,]+/', $request->search);
 
-                    $query->where(function ($q) use ($keywords) {
-                        foreach ($keywords as $keyword) {
-                            $keyword = trim($keyword);
-
-                            if ($keyword === '') {
-                                continue;
-                            }
-
-                            $this->applyVariantKeywordMatch($q, $keyword);
-                        }
-                    });
-                })
-                ->when($request->filled('category_code'), function ($query) use ($request) {
-                    $query->where('category_id', $request->category_code);
-                })
-                ->orderByDesc('created_at')
-                ->paginate(12)
-                ->withQueryString();
-        }
+                        $this->applyVariantKeywordMatch($q, $keyword);
+                    }
+                });
+            })
+            ->when($request->filled('category_code'), function ($query) use ($request) {
+                $query->where('category_id', $request->category_code);
+            })
+            ->when($request->filled('id_tipe'), function ($query) use ($request) {
+                $query->where('id_tipe', $request->id_tipe);
+            })
+            ->orderByDesc('created_at')
+            ->paginate($request->per_page ?? 12)
+            ->withQueryString();
 
         // Ambil list kategori
         $categories = Category::select([
@@ -216,7 +182,7 @@ class BarangController extends Controller
             ->orderBy('categoryname')
             ->get();
 
-        $keranjang = Keranjang::with([
+        $keranjang = auth()->check() ? Keranjang::with([
             'details.gambar',
             'details.barang.produk.produk',
             'details.barang.produk.gambars',
@@ -230,13 +196,11 @@ class BarangController extends Controller
         ])
             ->where('user_id', auth()->id())
             ->where('status', 'draft')
-            ->first();
+            ->first() : null;
 
         $cartItems = $keranjang?->details ?? collect();
 
         return Inertia::render('Dashboard', [
-            'tipeList' => $tipeList,
-            'selectedTipe' => $selectedTipe,
             'variantList' => $variantList,
 
             // List kategori

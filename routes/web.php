@@ -27,15 +27,15 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Route Publik
+// Route Publik - Landing page langsung ke Dashboard Katalog
 Route::get('/', function () {
-    return redirect()->route('login');
+    return redirect()->route('dashboard');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::get('/dashboard', [BarangController::class, 'dashboard'])->name('dashboard');
+Route::post('/dashboard/search-image', [BarangController::class, 'searchByImage'])->name('dashboard.search-image');
 
-    Route::get('/dashboard', [BarangController::class, 'dashboard'])->name('dashboard');
-    Route::post('/dashboard/search-image', [BarangController::class, 'searchByImage'])->name('dashboard.search-image');
+Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/keranjang/barang', [KeranjangController::class, 'storeBarang'])
         ->name('keranjang.storeBarang');
