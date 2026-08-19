@@ -1,10 +1,13 @@
 <script setup>
+import { ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import { Label } from '@/Components/ui/label';
 import InputError from '@/Components/InputError.vue'; // Pastikan import ini
-import { Loader2 } from 'lucide-vue-next';
+import { Loader2, Eye, EyeOff } from 'lucide-vue-next';
+
+const showPassword = ref(false);
 
 const form = useForm({
     user: '',
@@ -48,7 +51,18 @@ const submit = () => {
                             <Label for="password">Password</Label>
                             <Link :href="route('password.request')" class="text-xs text-blue-600 hover:underline">Lupa password?</Link>
                         </div>
-                        <Input id="password" v-model="form.password" type="password" placeholder="••••••••" class="h-10 bg-white/50" required />
+                        <div class="relative">
+                            <Input id="password" v-model="form.password" :type="showPassword ? 'text' : 'password'" placeholder="••••••••" class="h-10 bg-white/50 pr-10" required />
+                            <button
+                                type="button"
+                                @click="showPassword = !showPassword"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                tabindex="-1"
+                            >
+                                <EyeOff v-if="showPassword" class="w-4 h-4" />
+                                <Eye v-else class="w-4 h-4" />
+                            </button>
+                        </div>
                         <InputError :message="form.errors.password" />
                     </div>
 

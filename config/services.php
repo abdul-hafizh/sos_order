@@ -39,4 +39,11 @@ return [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-5.4-mini'),
+        'embedding_model' => env('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+        'image_similarity_threshold' => (float) env('OPENAI_IMAGE_SIMILARITY_THRESHOLD', 0.6),
+    ],
+
 ];

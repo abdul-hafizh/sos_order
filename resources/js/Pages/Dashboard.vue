@@ -17,6 +17,7 @@ import {
     Minus,
     Eye,
     Sparkles,
+    Loader2,
     SlidersHorizontal,
     Tag,
     Grid,
@@ -27,7 +28,6 @@ import {
     Truck,
     Flame,
     Star,
-    Zap,
     ArrowRight,
     MapPin,
     BadgeCheck,
@@ -435,10 +435,7 @@ const searchByImage = () => {
         return;
     }
 
-    const formData = new FormData();
-    formData.append("image", imageForm.image);
-
-    router.post(route("dashboard.search-image"), formData, {
+    imageForm.post(route("dashboard.search-image"), {
         forceFormData: true,
         preserveScroll: true,
         preserveState: false,
@@ -587,21 +584,16 @@ const getCategoryName = (code) => {
     return found ? found.name : 'Kategori';
 };
 
-const flashItems = computed(() => (props.variantList?.data || []).slice(0, 6));
-
-// 10 Corporate Style Quick Category Icon Cards (Point 2: Cleanly aligned grid)
-const quickCategoryIcons = [
-    { title: 'Semua Kategori', icon: '🏬', catCode: '' },
-    { title: 'Minum & Termos', icon: '☕', catCode: '1' },
-    { title: 'Dapur & Bekal', icon: '🍱', catCode: '2' },
-    { title: 'Kebersihan', icon: '🧹', catCode: '3' },
-    { title: 'ATK Kantor', icon: '📝', catCode: '4' },
-    { title: 'Seragam APD', icon: '👕', catCode: '5' },
-    { title: 'Perangkat Desk', icon: '💻', catCode: '6' },
-    { title: 'Packing & Dus', icon: '📦', catCode: '7' },
-    { title: 'Promo SPK', icon: '⚡', catCode: '' },
-    { title: 'Semua Produk', icon: '🔍', catCode: '' },
-];
+// Point 2: Kategori Pilihan Pengadaan - diambil langsung dari data Category
+// (menu master-kategori), dicocokkan ke produk lewat MasterProdukDetail.category_id.
+const quickCategoryIcons = computed(() => [
+    { title: 'Semua Kategori', gambar_url: null, catCode: '' },
+    ...props.categories.map((cat) => ({
+        title: cat.name,
+        gambar_url: cat.gambar_url,
+        catCode: cat.code,
+    })),
+]);
 </script>
 
 <template>
@@ -698,54 +690,14 @@ const quickCategoryIcons = [
                         class="w-full h-full flex flex-col items-center justify-center p-3 rounded-2xl border transition duration-200 group cursor-pointer hover:-translate-y-1 shadow-2xs text-center min-h-[90px]"
                         :class="selectedCategory === item.catCode && item.catCode ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200/80 hover:border-indigo-400 hover:bg-slate-50'"
                     >
-                        <div class="w-11 h-11 rounded-2xl bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white transition flex items-center justify-center text-xl shadow-2xs mb-1">
-                            {{ item.icon }}
+                        <div class="w-11 h-11 rounded-2xl bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white transition flex items-center justify-center overflow-hidden shadow-2xs mb-1">
+                            <img v-if="item.gambar_url" :src="item.gambar_url" class="w-full h-full object-cover" />
+                            <Package v-else class="w-5 h-5" />
                         </div>
                         <span class="text-[11px] font-bold text-slate-800 group-hover:text-indigo-600 line-clamp-1 w-full text-center">
                             {{ item.title }}
                         </span>
                     </button>
-                </div>
-            </div>
-
-            <!-- 3. Recommended Procurement Carousel Strip -->
-            <div v-if="flashItems.length" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 shadow-md space-y-4 border border-indigo-800/40">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div class="flex items-center space-x-2">
-                        <Zap class="w-6 h-6 text-yellow-300 animate-bounce" />
-                        <h3 class="font-black text-lg text-white">REKOMENDASI PENGADAAN TERPOPULER</h3>
-                        <span class="bg-indigo-600 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-2xs">Fast Order</span>
-                    </div>
-                </div>
-
-                <!-- Horizontal Scroll Product Cards -->
-                <div class="flex space-x-4 overflow-x-auto no-scrollbar py-1">
-                    <div
-                        v-for="detail in flashItems"
-                        :key="detail.id_produk_detail"
-                        class="w-48 shrink-0 bg-white text-slate-900 rounded-2xl p-3 shadow-md border border-slate-100 flex flex-col justify-between group hover:scale-[1.02] transition duration-200"
-                    >
-                        <div>
-                            <div class="aspect-square bg-slate-50 rounded-xl overflow-hidden relative mb-2">
-                                <img v-if="detail.gambars?.[0]" :src="`/storage/${detail.gambars[0].path_file}`" class="w-full h-full object-cover" />
-                                <ImageOff v-else class="w-8 h-8 text-slate-300 m-auto mt-10" />
-                                <span class="absolute top-1.5 left-1.5 bg-indigo-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded">
-                                    TOP Varian
-                                </span>
-                            </div>
-                            <h4 class="font-bold text-xs line-clamp-2 min-h-[32px] text-slate-900 group-hover:text-indigo-600">
-                                {{ variantLabel(detail) }}
-                            </h4>
-
-                            <div class="text-indigo-700 font-black text-sm mt-1">
-                                {{ rupiah(detail.barang?.harga_jual) }}
-                            </div>
-                        </div>
-
-                        <Button type="button" size="sm" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" @click="addSingleVariantToCart(detail)">
-                            + Keranjang
-                        </Button>
-                    </div>
                 </div>
             </div>
 
@@ -820,7 +772,8 @@ const quickCategoryIcons = [
                             </button>
                         </div>
 
-                        <Button type="submit" size="sm" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs h-9 font-bold" :disabled="!imageForm.image || imageForm.processing">
+                        <Button type="submit" size="sm" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs h-9 font-bold flex items-center justify-center" :disabled="!imageForm.image || imageForm.processing">
+                            <Loader2 v-if="imageForm.processing" class="w-4 h-4 mr-2 animate-spin" />
                             {{ imageForm.processing ? "Mencari..." : "Cari Gambar" }}
                         </Button>
                     </form>
@@ -1169,7 +1122,7 @@ const quickCategoryIcons = [
                             <ShoppingCart class="w-5 h-5 text-indigo-600" />
                             <span>Keranjang Pengadaan</span>
                         </h3>
-                        <p class="text-xs text-slate-500 mt-0.5">{{ totalCartQty }} item siap diajukan SPK</p>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ totalCartQty }} item siap dibuat pesanan</p>
                     </div>
                     <button type="button" class="p-2 rounded-full hover:bg-slate-200 text-slate-500" @click="showCart = false">
                         <X class="w-5 h-5" />
@@ -1185,7 +1138,7 @@ const quickCategoryIcons = [
                             <span>💡 PETUNJUK FOTO SAMPEL BARANG:</span>
                         </div>
                         <p class="text-[11px] text-slate-700 leading-relaxed font-medium">
-                            Anda dapat mengunggah <b>satu atau beberapa foto sampel</b> untuk setiap item di keranjang ini. Klik tombol <b>"+ Upload Multiple Foto Sampel"</b> pada masing-masing barang di bawah ini.
+                            Khusus barang permintaan baru. Anda dapat mengunggah <b>satu atau beberapa foto sampel</b> untuk setiap item di keranjang ini. Klik tombol <b>"+ Upload Multiple Foto Sampel"</b> pada masing-masing barang di bawah ini.
                         </p>
                     </div>
 
@@ -1265,7 +1218,7 @@ const quickCategoryIcons = [
 
                 <div class="p-5 border-t border-slate-100 bg-white">
                     <Button type="button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl h-12 font-bold shadow-md" :disabled="!cartItems.length" @click="pesanSekarang">
-                        Ajukan Ke Dokumen SPK
+                        Buat Pesanan
                     </Button>
                 </div>
             </div>

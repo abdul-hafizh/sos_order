@@ -30,6 +30,7 @@ watch(() => page.props.flash, (flash) => {
         <!-- Top Navbar -->
         <Navbar
             :user="$page.props.auth.user"
+            :tipes="$page.props.navTipes"
             @open-login-modal="$emit('open-login-modal')"
             @toggle-cart="$emit('toggle-cart')"
             @open-image-search="$emit('open-image-search')"

@@ -28,6 +28,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    tipes: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits(['toggleCart', 'openImageSearch', 'openLoginModal']);
@@ -56,8 +60,6 @@ const masterDataItems = [
     { name: 'PPN', route: 'master-ppn.index' },
 ];
 
-const trendingSearches = ['Tumbler Vacuum', 'Kertas HVS A4', 'Pulpen Gel', 'Disinfektan', 'Mouse Wireless', 'Seragam Polo'];
-
 const getRoute = (name) => (name ? route(name) : '#');
 const isActive = (routeName) => routeName && route().current(routeName);
 
@@ -72,9 +74,16 @@ const executeSearch = () => {
     );
 };
 
-const selectTrending = (term) => {
-    searchQuery.value = term;
-    executeSearch();
+const selectTipe = (tipe) => {
+    router.get(
+        route('dashboard'),
+        {
+            search: searchQuery.value,
+            category_code: selectedCategory.value,
+            id_tipe: tipe.id_tipe,
+        },
+        { preserveState: true, replace: true }
+    );
 };
 
 const selectCategoryQuick = (code) => {
@@ -190,15 +199,15 @@ const selectCategoryQuick = (code) => {
                         </button>
                     </form>
 
-                    <!-- Trending Searches Strip -->
+                    <!-- Tipe Barang Strip -->
                     <div class="hidden sm:flex items-center space-x-3 text-[11px] text-slate-500 mt-1 pl-1 overflow-x-auto no-scrollbar">
                         <span
-                            v-for="(word, idx) in trendingSearches"
-                            :key="idx"
-                            @click="selectTrending(word)"
+                            v-for="tipe in tipes"
+                            :key="tipe.id_tipe"
+                            @click="selectTipe(tipe)"
                             class="hover:text-indigo-600 cursor-pointer whitespace-nowrap font-medium"
                         >
-                            {{ word }}
+                            {{ tipe.nama }}
                         </span>
                     </div>
                 </div>
@@ -235,7 +244,7 @@ const selectCategoryQuick = (code) => {
                             </template>
                             <template #content>
                                 <DropdownLink :href="route('profile.edit')">Profile Saya</DropdownLink>
-                                <DropdownLink :href="route('spk.index')">SPK Saya</DropdownLink>
+                                <DropdownLink v-if="isHoUser" :href="route('spk.index')">SPK Saya</DropdownLink>
                                 <DropdownLink :href="route('logout')" method="post" as="button" class="text-red-600">Log Out</DropdownLink>
                             </template>
                         </Dropdown>
@@ -300,6 +309,7 @@ const selectCategoryQuick = (code) => {
                     </Link>
 
                     <Link
+                        v-if="isHoUser"
                         :href="route('spk.index')"
                         class="hover:text-indigo-600"
                         :class="isActive('spk.index') || route().current('spk.*') ? 'text-indigo-600' : 'text-slate-600'"

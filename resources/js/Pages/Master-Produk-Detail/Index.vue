@@ -15,6 +15,7 @@ import {
     ImagePlus,
     Upload,
     X,
+    Loader2,
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -35,6 +36,7 @@ const showModal = ref(false);
 const showDeleteModal = ref(false);
 const editingProdukDetail = ref(null);
 const produkDetailToDelete = ref(null);
+const isSubmitting = ref(false);
 
 const params = ref({
     search: props.filters.search || '',
@@ -190,6 +192,8 @@ const closeModal = () => {
 };
 
 const submit = () => {
+    isSubmitting.value = true;
+
     if (editingProdukDetail.value) {
         router.post(
             route('master-produk-detail.update', editingProdukDetail.value.id_produk_detail),
@@ -198,6 +202,7 @@ const submit = () => {
                 forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => closeModal(),
+                onFinish: () => { isSubmitting.value = false; },
             }
         );
     } else {
@@ -205,6 +210,7 @@ const submit = () => {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => closeModal(),
+            onFinish: () => { isSubmitting.value = false; },
         });
     }
 };
@@ -535,9 +541,10 @@ const syncMItem = (item) => {
                         </div>
 
                         <div class="flex justify-end gap-2 pt-4 border-t">
-                            <Button type="button" variant="outline" @click="closeModal">Batal</Button>
-                            <Button type="submit" :disabled="form.processing" class="bg-blue-600 text-white">
-                                {{ form.processing ? 'Menyimpan...' : 'Simpan' }}
+                            <Button type="button" variant="outline" :disabled="isSubmitting" @click="closeModal">Batal</Button>
+                            <Button type="submit" :disabled="isSubmitting" class="bg-blue-600 text-white flex items-center justify-center">
+                                <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
+                                {{ isSubmitting ? 'Menyimpan...' : 'Simpan' }}
                             </Button>
                         </div>
                     </form>

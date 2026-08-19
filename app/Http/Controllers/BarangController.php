@@ -6,21 +6,15 @@ use App\Models\Barang;
 use App\Models\BarangDetail;
 use App\Models\BarangGambar;
 use App\Models\Keranjang;
-use App\Models\MasterBerat;
-use App\Models\MasterKarakter;
-use App\Models\MasterProduk;
 use App\Models\MasterProdukDetail;
 use App\Models\MasterSatuan;
-use App\Models\MasterTipe;
-use App\Models\MasterUkuran;
-use App\Models\MasterUom;
-use App\Models\MasterWarna;
 use App\Models\Category;
+use App\Models\MasterProdukDetailGambar;
+use App\Services\ImageEmbeddingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class BarangController extends Controller
@@ -145,33 +139,75 @@ class BarangController extends Controller
 
     public function dashboard(Request $request)
     {
-        $variantList = MasterProdukDetail::query()
+        $imageSimilarIds = collect(explode(',', (string) $request->input('image_similar_ids')))
+            ->map(fn($id) => (int) trim($id))
+            ->filter()
+            ->values()
+            ->all();
+
+        $baseQuery = MasterProdukDetail::query()
             ->whereHas('barang')
             ->with(['barang', 'gambars', 'produk', 'satuan', 'berat', 'ukuran', 'warna', 'karakter', 'uom', 'tipe'])
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $keywords = preg_split('/[\s,]+/', $request->search);
-
-                $query->where(function ($q) use ($keywords) {
-                    foreach ($keywords as $keyword) {
-                        $keyword = trim($keyword);
-
-                        if ($keyword === '') {
-                            continue;
-                        }
-
-                        $this->applyVariantKeywordMatch($q, $keyword);
-                    }
-                });
-            })
             ->when($request->filled('category_code'), function ($query) use ($request) {
                 $query->where('category_id', $request->category_code);
             })
             ->when($request->filled('id_tipe'), function ($query) use ($request) {
                 $query->where('id_tipe', $request->id_tipe);
-            })
-            ->orderByDesc('created_at')
-            ->paginate($request->per_page ?? 12)
-            ->withQueryString();
+            });
+
+        if (!empty($imageSimilarIds)) {
+            $matches = (clone $baseQuery)->whereIn('id_produk_detail', $imageSimilarIds)->get();
+
+            $sorted = $matches->sortBy(function ($item) use ($imageSimilarIds) {
+                $pos = array_search($item->id_produk_detail, $imageSimilarIds, true);
+
+                return $pos === false ? PHP_INT_MAX : $pos;
+            })->values();
+
+            $perPage = (int) ($request->per_page ?? 12);
+            $page = (int) $request->input('page', 1);
+
+            $variantList = new \Illuminate\Pagination\LengthAwarePaginator(
+                $sorted->forPage($page, $perPage)->values(),
+                $sorted->count(),
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+        } elseif ($request->boolean('image_no_results')) {
+            // Pencarian gambar sudah dilakukan tapi tidak ada produk yang mirip
+            // (di atas ambang similarity) - tampilkan list kosong, jangan fallback ke semua produk.
+            $perPage = (int) ($request->per_page ?? 12);
+            $page = (int) $request->input('page', 1);
+
+            $variantList = new \Illuminate\Pagination\LengthAwarePaginator(
+                collect(),
+                0,
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+        } else {
+            $variantList = $baseQuery
+                ->when($request->filled('search'), function ($query) use ($request) {
+                    $keywords = preg_split('/[\s,]+/', $request->search);
+
+                    $query->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $keyword) {
+                            $keyword = trim($keyword);
+
+                            if ($keyword === '') {
+                                continue;
+                            }
+
+                            $this->applyVariantKeywordMatch($q, $keyword);
+                        }
+                    });
+                })
+                ->orderByDesc('created_at')
+                ->paginate($request->per_page ?? 12)
+                ->withQueryString();
+        }
 
         // Ambil list kategori
         $categories = Category::select([
@@ -215,6 +251,7 @@ class BarangController extends Controller
 
             'image_keyword' => $request->input('image_keyword'),
             'image_path' => $request->input('image_path'),
+            'image_similar_ids' => $request->input('image_similar_ids'),
 
             'keranjang' => [
                 'id_keranjang' => $keranjang?->id_keranjang,
@@ -225,95 +262,72 @@ class BarangController extends Controller
         ]);
     }
     
-    public function searchByImage(Request $request)
+    public function searchByImage(Request $request, ImageEmbeddingService $embeddingService)
     {
-        $file = $request->file('image');
-
         $request->validate([
             'image' => 'required|file|mimetypes:image/jpeg,image/png,image/webp|max:10240',
         ]);
 
+        $file = $request->file('image');
         $imagePath = $file->store('permintaan-barang', 'public');
 
         session([
             'last_image_path' => $imagePath,
         ]);
 
-        $base64 = base64_encode(file_get_contents($file->getRealPath()));
-        $mime = $file->getMimeType();
+        $result = $embeddingService->generateImageEmbedding($file->getRealPath(), $file->getMimeType());
 
-        $referensi = [
-            'nama produk' => MasterProduk::orderBy('nama_produk')->limit(300)->pluck('nama_produk'),
-            'type' => MasterTipe::orderBy('nama')->pluck('nama'),
-            'satuan' => MasterSatuan::orderBy('nama')->pluck('nama'),
-            'berat' => MasterBerat::orderBy('nama')->pluck('nama'),
-            'ukuran' => MasterUkuran::orderBy('nama')->pluck('nama'),
-            'warna' => MasterWarna::orderBy('nama')->pluck('nama'),
-            'karakter' => MasterKarakter::orderBy('nama')->pluck('nama'),
-            'uom' => MasterUom::orderBy('nama_uom')->pluck('nama_uom'),
-        ];
-
-        $referensiText = collect($referensi)
-            ->map(fn($values, $label) => $values->isEmpty() ? null : "- {$label}: " . $values->implode(', '))
-            ->filter()
-            ->implode("\n");
-
-        $prompt = "Analisis gambar produk ini. Data produk di database kami tersimpan dalam bentuk produk beserta detailnya, yaitu nama produk, type, satuan, berat, ukuran, warna, karakter, dan uom (satuan unit). Berikut daftar nilai yang benar-benar ada di database untuk tiap kategori tersebut:\n"
-            . ($referensiText !== '' ? $referensiText : '(belum ada data referensi)')
-            . "\n\nTugasmu: berdasarkan gambar, berikan 3 sampai 8 keyword pencarian dalam bahasa Indonesia (1 kata per keyword). Utamakan/prioritaskan istilah yang PERSIS ada pada daftar referensi di atas (nama produk, type, satuan, berat, ukuran, warna, karakter, atau uom) jika cocok dengan yang terlihat di gambar, supaya pencarian ke database lebih spesifik dan akurat. Jika tidak ada istilah referensi yang cocok, boleh gunakan kata umum lain yang menggambarkan produknya. Jawab hanya JSON: {\"keywords\":[\"...\"]}";
-
-        $response = Http::withToken(env('OPENAI_API_KEY'))
-            ->timeout(60)
-            ->post('https://api.openai.com/v1/responses', [
-                'model' => env('OPENAI_MODEL', 'gpt-5.4-mini'),
-                'input' => [
-                    [
-                        'role' => 'user',
-                        'content' => [
-                            [
-                                'type' => 'input_text',
-                                'text' => $prompt,
-                            ],
-                            [
-                                'type' => 'input_image',
-                                'image_url' => "data:{$mime};base64,{$base64}",
-                            ],
-                        ],
-                    ],
-                ],
-            ]);
-
-        $jsonText = $response->json('output.0.content.0.text') ?? '{}';
-
-        $result = json_decode($jsonText, true);
-
-        $keywords = $result['keywords'] ?? [];
-
-        $keywordText = collect($keywords)
-            ->filter()
-            ->map(fn($item) => trim($item))
-            ->filter()
-            ->unique()
-            ->values()
-            ->implode(' ');
-
-        $imageKeywordText = collect($keywords)
-            ->filter()
-            ->map(fn($item) => trim($item))
-            ->filter()
-            ->unique()
-            ->values()
-            ->implode(', ');
-
-        if (!$keywordText) {
+        if (!$result) {
             return redirect()
                 ->route('dashboard')
-                ->with('error', 'Keyword dari gambar tidak berhasil dibaca.');
+                ->with('error', 'Gagal menganalisis gambar, silakan coba lagi.');
+        }
+
+        $queryEmbedding = $result['embedding'];
+
+        $scoresByDetail = [];
+
+        MasterProdukDetailGambar::query()
+            ->whereNotNull('embedding')
+            ->select(['id_produk_detail', 'embedding'])
+            ->chunk(200, function ($chunk) use (&$scoresByDetail, $queryEmbedding) {
+                foreach ($chunk as $gambar) {
+                    $vector = $gambar->embedding;
+
+                    if (!is_array($vector) || empty($vector)) {
+                        continue;
+                    }
+
+                    $score = ImageEmbeddingService::cosineSimilarity($queryEmbedding, $vector);
+                    $detailId = $gambar->id_produk_detail;
+
+                    if (!isset($scoresByDetail[$detailId]) || $score > $scoresByDetail[$detailId]) {
+                        $scoresByDetail[$detailId] = $score;
+                    }
+                }
+            });
+
+        arsort($scoresByDetail);
+
+        $threshold = (float) config('services.openai.image_similarity_threshold', 0.6);
+
+        $rankedIds = array_slice(
+            array_keys(array_filter($scoresByDetail, fn($score) => $score >= $threshold)),
+            0,
+            60
+        );
+
+        if (empty($rankedIds)) {
+            return redirect()->route('dashboard', [
+                'image_no_results' => 1,
+                'image_keyword' => Str::limit($result['description'], 140),
+                'image_path' => $imagePath,
+            ])->with('error', 'Tidak ditemukan produk yang mirip dengan gambar ini.');
         }
 
         return redirect()->route('dashboard', [
-            'search' => $keywordText,
-            'image_keyword' => $imageKeywordText,
+            'image_similar_ids' => implode(',', $rankedIds),
+            'image_keyword' => Str::limit($result['description'], 140),
             'image_path' => $imagePath,
         ]);
     }

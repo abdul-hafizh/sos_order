@@ -15,6 +15,15 @@ class MasterProdukDetailGambar extends Model
         'nama_file',
         'path_file',
         'created_by',
+        'description',
+        'embedding',
+        'embedding_model',
+        'embedding_generated_at',
+    ];
+
+    protected $casts = [
+        'embedding' => 'array',
+        'embedding_generated_at' => 'datetime',
     ];
 
     protected static function boot()

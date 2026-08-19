@@ -6,7 +6,7 @@ import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
 import { Label } from '@/Components/ui/label';
 import InputError from '@/Components/InputError.vue';
-import { Loader2, Lock, User, X, LogIn } from 'lucide-vue-next';
+import { Loader2, Lock, User, X, LogIn, Eye, EyeOff } from 'lucide-vue-next';
 
 const props = defineProps({
     show: {
@@ -20,6 +20,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'success']);
+
+const showPassword = ref(false);
 
 const form = useForm({
     user: '',
@@ -109,11 +111,20 @@ const submitLogin = () => {
                         <Input
                             id="password_modal"
                             v-model="form.password"
-                            type="password"
+                            :type="showPassword ? 'text' : 'password'"
                             placeholder="••••••••"
-                            class="pl-10 h-10 text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-100 bg-slate-50 font-medium w-full"
+                            class="pl-10 pr-10 h-10 text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-100 bg-slate-50 font-medium w-full"
                             required
                         />
+                        <button
+                            type="button"
+                            @click="showPassword = !showPassword"
+                            class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            tabindex="-1"
+                        >
+                            <EyeOff v-if="showPassword" class="w-4 h-4" />
+                            <Eye v-else class="w-4 h-4" />
+                        </button>
                     </div>
                     <InputError :message="form.errors.password" />
                 </div>

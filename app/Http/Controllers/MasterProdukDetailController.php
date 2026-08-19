@@ -16,8 +16,12 @@ use App\Models\MasterUom;
 use App\Models\MasterWarna;
 use App\Models\MItem;
 use App\Models\Ppn;
+use App\Services\ImageEmbeddingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -75,7 +79,80 @@ class MasterProdukDetailController extends Controller
         return response()->json($barangs);
     }
 
-    public function store(Request $request)
+    /**
+     * Bangun payload MasterProdukDetailGambar dari file upload, sekaligus
+     * generate embedding visualnya (vision -> deskripsi -> text-embedding).
+     * Kegagalan OpenAI tidak menggagalkan simpan gambar, hanya embedding-nya kosong.
+     */
+    private function buildGambarData(int $idProdukDetail, $file, ImageEmbeddingService $embeddingService): array
+    {
+        $path = $file->store('produk', 'public');
+
+        $gambarData = [
+            'id_produk_detail' => $idProdukDetail,
+            'nama_file' => Crypt::encryptString($file->getClientOriginalName()),
+            'path_file' => $path,
+        ];
+
+        try {
+            $result = $embeddingService->generateImageEmbedding($file->getRealPath(), $file->getMimeType());
+
+            if ($result) {
+                $gambarData['description'] = $result['description'];
+                $gambarData['embedding'] = $result['embedding'];
+                $gambarData['embedding_model'] = $result['model'];
+                $gambarData['embedding_generated_at'] = now();
+            }
+        } catch (\Throwable $e) {
+            Log::error('Gagal membuat embedding gambar produk', [
+                'file' => $file->getClientOriginalName(),
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $gambarData;
+    }
+
+    /**
+     * Generate embedding hanya untuk gambar produk detail yang belum punya embedding
+     * (kolomnya masih null, mis. karena gagal saat pertama kali disimpan). Gambar yang
+     * embedding-nya sudah terisi dilewati saja, tidak di-generate ulang.
+     */
+    private function backfillMissingEmbeddings(MasterProdukDetail $produkDetail, ImageEmbeddingService $embeddingService): void
+    {
+        $gambars = MasterProdukDetailGambar::where('id_produk_detail', $produkDetail->id_produk_detail)
+            ->whereNull('embedding')
+            ->get();
+
+        foreach ($gambars as $gambar) {
+            $absolutePath = Storage::disk('public')->path($gambar->path_file);
+
+            if (!is_file($absolutePath)) {
+                continue;
+            }
+
+            try {
+                $mime = File::mimeType($absolutePath) ?: 'image/jpeg';
+                $result = $embeddingService->generateImageEmbedding($absolutePath, $mime);
+
+                if ($result) {
+                    $gambar->update([
+                        'description' => $result['description'],
+                        'embedding' => $result['embedding'],
+                        'embedding_model' => $result['model'],
+                        'embedding_generated_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('Gagal membuat embedding gambar produk (backfill saat update)', [
+                    'id_produk_gambar' => $gambar->id_produk_gambar,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    public function store(Request $request, ImageEmbeddingService $embeddingService)
     {
         $validated = $request->validate([
             'id_produk' => 'required|integer|exists:master_produk,id_produk',
@@ -93,18 +170,14 @@ class MasterProdukDetailController extends Controller
             'foto.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        DB::transaction(function () use ($request, $validated) {
+        DB::transaction(function () use ($request, $validated, $embeddingService) {
             $produkDetail = MasterProdukDetail::create($validated);
 
             if ($request->hasFile('foto')) {
                 foreach ($request->file('foto') as $file) {
-                    $path = $file->store('produk', 'public');
-
-                    MasterProdukDetailGambar::create([
-                        'id_produk_detail' => $produkDetail->id_produk_detail,
-                        'nama_file' => $file->getClientOriginalName(),
-                        'path_file' => $path,
-                    ]);
+                    MasterProdukDetailGambar::create(
+                        $this->buildGambarData($produkDetail->id_produk_detail, $file, $embeddingService)
+                    );
                 }
             }
         });
@@ -112,7 +185,7 @@ class MasterProdukDetailController extends Controller
         return back()->with('success', 'Produk detail berhasil ditambahkan');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $id, ImageEmbeddingService $embeddingService)
     {
         $produkDetail = MasterProdukDetail::findOrFail($id);
 
@@ -140,7 +213,7 @@ class MasterProdukDetailController extends Controller
             'deleted_gambar_ids.*' => 'integer',
         ]);
 
-        DB::transaction(function () use ($request, $validated, $produkDetail) {
+        DB::transaction(function () use ($request, $validated, $produkDetail, $embeddingService) {
             $produkDetail->update(collect($validated)->except(['foto', 'deleted_gambar_ids'])->all());
 
             $deletedGambarIds = $validated['deleted_gambar_ids'] ?? [];
@@ -161,15 +234,13 @@ class MasterProdukDetailController extends Controller
 
             if ($request->hasFile('foto')) {
                 foreach ($request->file('foto') as $file) {
-                    $path = $file->store('produk', 'public');
-
-                    MasterProdukDetailGambar::create([
-                        'id_produk_detail' => $produkDetail->id_produk_detail,
-                        'nama_file' => $file->getClientOriginalName(),
-                        'path_file' => $path,
-                    ]);
+                    MasterProdukDetailGambar::create(
+                        $this->buildGambarData($produkDetail->id_produk_detail, $file, $embeddingService)
+                    );
                 }
             }
+
+            $this->backfillMissingEmbeddings($produkDetail, $embeddingService);
         });
 
         return back()->with('success', 'Produk detail berhasil diupdate');
