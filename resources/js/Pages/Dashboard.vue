@@ -36,6 +36,10 @@ import {
 
 const props = defineProps({
     variantList: Object,
+    tipeList: {
+        type: Array,
+        default: null,
+    },
     categories: {
         type: Array,
         default: () => [],
@@ -84,15 +88,18 @@ const saveGuestCart = () => {
 // Quick View Modal State
 const quickViewVariant = ref(null);
 const quickViewQty = ref(1);
+const quickViewImageIndex = ref(0);
 
 const openQuickView = (detail) => {
     quickViewVariant.value = detail;
     quickViewQty.value = 1;
+    quickViewImageIndex.value = 0;
 };
 
 const closeQuickView = () => {
     quickViewVariant.value = null;
     quickViewQty.value = 1;
+    quickViewImageIndex.value = 0;
 };
 
 const currentUser = computed(() => usePage().props.auth?.user);
@@ -482,6 +489,32 @@ const selectCategory = (categoryCode) => {
     }
 };
 
+// Masuk ke daftar varian 1 tipe (dari kartu tipe di mode browse)
+const selectTipeGroup = (tipe) => {
+    router.get(
+        route("dashboard"),
+        {
+            category_code: params.value.category_code,
+            id_tipe: tipe.id_tipe,
+        },
+        { preserveState: false },
+    );
+    if (catalogSectionRef.value) {
+        catalogSectionRef.value.scrollIntoView({ behavior: 'smooth' });
+    }
+};
+
+// Kembali dari daftar varian 1 tipe ke daftar tipe (mode browse)
+const backToTipeList = () => {
+    router.get(
+        route("dashboard"),
+        {
+            category_code: params.value.category_code,
+        },
+        { preserveState: false },
+    );
+};
+
 // Handle login success from LoginModal
 const handleLoginSuccess = () => {
     showLoginModal.value = false;
@@ -652,9 +685,6 @@ const quickCategoryIcons = computed(() => [
                             <Truck class="w-4 h-4 text-indigo-300" />
                             <span>Gudang GSOS</span>
                         </span>
-                        <span class="bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold shadow-2xs">
-                            Bebas PPN 11%
-                        </span>
                     </div>
                 </div>
 
@@ -809,7 +839,81 @@ const quickCategoryIcons = computed(() => [
 
                 <!-- Right Main Variant Product Catalog Grid -->
                 <main class="flex-1 w-full space-y-5">
-                    
+
+                    <!-- BROWSE MODE: Kelompok per Tipe Produk (default, sebelum search/pilih tipe) -->
+                    <template v-if="tipeList">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 p-4 flex items-center gap-3 shadow-xs">
+                            <h3 class="font-extrabold text-slate-900 text-base">
+                                {{ selectedCategory ? `Tipe Produk ${getCategoryName(selectedCategory)}` : 'Tipe Produk' }}
+                            </h3>
+                            <span class="bg-indigo-50 text-indigo-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-indigo-100">
+                                {{ tipeList.length }} Tipe Ditemukan
+                            </span>
+                        </div>
+
+                        <div v-if="tipeList.length" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4 gap-4 md:gap-5">
+                            <button
+                                type="button"
+                                v-for="tipe in tipeList"
+                                :key="tipe.id_tipe"
+                                @click="selectTipeGroup(tipe)"
+                                class="group text-left bg-white rounded-3xl border border-slate-200/80 hover:border-indigo-400 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col cursor-pointer"
+                            >
+                                <div class="aspect-square bg-slate-50 relative overflow-hidden">
+                                    <img
+                                        v-if="tipe.gambar_url"
+                                        :src="tipe.gambar_url"
+                                        class="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                                    />
+                                    <div v-else class="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-300 gap-1">
+                                        <ImageOff class="w-8 h-8" />
+                                        <span class="text-[10px] text-slate-400">Belum ada foto</span>
+                                    </div>
+
+                                    <div v-if="tipe.category_name" class="absolute top-3 left-3 bg-white/95 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[10px] font-bold text-indigo-700 border border-slate-200/60 shadow-xs">
+                                        {{ tipe.category_name }}
+                                    </div>
+
+                                    <div class="absolute top-3 right-3 bg-slate-900/80 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                        {{ tipe.jumlah_varian }} Varian
+                                    </div>
+                                </div>
+
+                                <div class="p-4 space-y-2 flex-1 flex flex-col justify-between">
+                                    <h4 class="font-bold text-slate-900 text-sm line-clamp-2 group-hover:text-indigo-600 transition">
+                                        {{ tipe.nama }}
+                                    </h4>
+
+                                    <div class="space-y-0.5">
+                                        <div class="text-[10px] text-slate-400 font-semibold">Mulai dari</div>
+                                        <div class="text-indigo-700 font-black text-base">
+                                            {{ rupiah(tipe.harga_terendah) }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div v-else class="bg-white rounded-3xl border border-slate-200 p-12 text-center shadow-xs space-y-3">
+                            <Package class="w-16 h-16 mx-auto text-slate-300" />
+                            <h3 class="font-bold text-slate-900 text-base">Belum Ada Tipe Produk</h3>
+                            <p class="text-xs text-slate-500 max-w-md mx-auto">Tidak ada tipe produk yang sesuai dengan kategori ini.</p>
+                        </div>
+                    </template>
+
+                    <!-- FLAT MODE: Hasil pencarian teks/gambar, atau varian di dalam 1 tipe -->
+                    <template v-else>
+
+                    <!-- Breadcrumb kembali ke daftar tipe (hanya tampil saat sedang di dalam 1 tipe) -->
+                    <button
+                        v-if="filters?.id_tipe"
+                        type="button"
+                        @click="backToTipeList"
+                        class="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                    >
+                        ← Kembali ke Semua Tipe
+                    </button>
+
                     <!-- Sorting Bar & View Switcher -->
                     <div class="bg-white rounded-2xl border border-slate-200/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                         <div class="flex items-center space-x-2">
@@ -1042,6 +1146,8 @@ const quickCategoryIcons = computed(() => [
                             />
                         </Link>
                     </div>
+
+                    </template>
                 </main>
             </div>
         </div>
@@ -1076,8 +1182,26 @@ const quickCategoryIcons = computed(() => [
 
                 <div class="p-6 space-y-4">
                     <div class="aspect-square w-48 h-48 mx-auto bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center">
-                        <img v-if="quickViewVariant.gambars?.[0]" :src="`/storage/${quickViewVariant.gambars[0].path_file}`" class="w-full h-full object-cover" />
+                        <img
+                            v-if="quickViewVariant.gambars?.[quickViewImageIndex]"
+                            :src="`/storage/${quickViewVariant.gambars[quickViewImageIndex].path_file}`"
+                            class="w-full h-full object-cover"
+                        />
                         <ImageOff v-else class="w-12 h-12 text-slate-300" />
+                    </div>
+
+                    <!-- Thumbnail Strip (hanya tampil kalau foto lebih dari 1) -->
+                    <div v-if="quickViewVariant.gambars?.length > 1" class="flex items-center justify-center gap-2 flex-wrap">
+                        <button
+                            type="button"
+                            v-for="(gambar, idx) in quickViewVariant.gambars"
+                            :key="gambar.id_produk_gambar"
+                            @click="quickViewImageIndex = idx"
+                            class="w-12 h-12 rounded-lg overflow-hidden border-2 transition shrink-0"
+                            :class="quickViewImageIndex === idx ? 'border-indigo-600' : 'border-slate-200 hover:border-indigo-300'"
+                        >
+                            <img :src="`/storage/${gambar.path_file}`" class="w-full h-full object-cover" />
+                        </button>
                     </div>
 
                     <div class="space-y-2 text-center">

@@ -8,13 +8,20 @@ use Illuminate\Support\Facades\Log;
 class ImageEmbeddingService
 {
     private const DESCRIPTION_PROMPT = <<<'PROMPT'
-        Deskripsikan secara detail dan objektif produk yang terlihat pada gambar ini
-        dalam 3-5 kalimat berbahasa Indonesia. Fokus pada: bentuk/siluet, warna dominan
-        dan warna sekunder, motif/pola (polos, bergaris, kotak-kotak, bermotif bunga, dll),
-        bahan/tekstur permukaan jika terlihat (kain, plastik, logam, kayu, kulit, kaca, dll),
-        dan kategori/jenis produk secara umum. Jangan menyebutkan merek, teks pada gambar,
-        atau nama produk spesifik dari database mana pun - cukup gambarkan ciri visualnya
-        secara umum agar bisa dibandingkan dengan produk lain yang tampilan visualnya mirip.
+        Gambar ini bisa berupa foto produk polos, atau foto gaya hidup (mis. dipegang/dipakai
+        seseorang, dengan latar belakang orang, ruangan, atau alam). Tugasmu HANYA mendeskripsikan
+        satu objek/barang utamanya - abaikan sepenuhnya orang, wajah, tangan, pakaian yang dikenakan
+        orang tersebut, serta latar belakang/pemandangan di sekitarnya, walaupun elemen itu lebih
+        dominan secara visual di gambar. Jika ada beberapa objek, pilih objek yang paling jadi fokus
+        utama (biasanya yang dipegang/ditonjolkan ke arah kamera).
+
+        Deskripsikan objek tersebut secara detail dan objektif dalam 3-5 kalimat berbahasa Indonesia.
+        Fokus pada: bentuk/siluet, warna dominan dan warna sekunder, motif/pola (polos, bergaris,
+        kotak-kotak, bermotif bunga, dll), bahan/tekstur permukaan jika terlihat (kain, plastik,
+        logam, kayu, kulit, kaca, dll), dan kategori/jenis produk secara umum. Jangan menyebutkan
+        merek, teks pada gambar, atau nama produk spesifik dari database mana pun - cukup gambarkan
+        ciri visualnya secara umum agar bisa dibandingkan dengan produk lain yang tampilan visualnya
+        mirip.
         PROMPT;
 
     private string $apiKey;
@@ -63,6 +70,7 @@ class ImageEmbeddingService
                 ->timeout(60)
                 ->post('https://api.openai.com/v1/responses', [
                     'model' => $this->visionModel,
+                    'temperature' => 0,
                     'input' => [
                         [
                             'role' => 'user',

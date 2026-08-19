@@ -137,6 +137,46 @@ class BarangController extends Controller
         ]);
     }
 
+    /**
+     * Ringkasan produk dikelompokkan per MasterTipe (dipakai dashboard() saat mode browse):
+     * untuk tiap tipe, ambil varian dengan harga_jual paling rendah sebagai representasi
+     * (gambar, kategori, dan harga "mulai dari" ikut dari varian termurah itu).
+     */
+    private function buildTipeSummaries(Request $request)
+    {
+        $details = MasterProdukDetail::query()
+            ->whereHas('barang')
+            ->whereNotNull('id_tipe')
+            ->with([
+                'barang:id_barang,kode_barang,harga_jual',
+                'gambars:id_produk_gambar,id_produk_detail,path_file',
+                'category:categorycode,categoryname',
+                'tipe:id_tipe,nama',
+            ])
+            ->when($request->filled('category_code'), function ($query) use ($request) {
+                $query->where('category_id', $request->category_code);
+            })
+            ->get();
+
+        return $details
+            ->groupBy('id_tipe')
+            ->map(function ($items) {
+                $cheapest = $items->sortBy(fn($d) => $d->barang?->harga_jual ?? PHP_INT_MAX)->first();
+                $gambar = $cheapest->gambars->first();
+
+                return [
+                    'id_tipe' => $cheapest->id_tipe,
+                    'nama' => $cheapest->tipe?->nama ?? 'Lainnya',
+                    'harga_terendah' => (float) ($cheapest->barang?->harga_jual ?? 0),
+                    'category_name' => $cheapest->category?->categoryname,
+                    'gambar_url' => $gambar ? asset('storage/' . $gambar->path_file) : null,
+                    'jumlah_varian' => $items->count(),
+                ];
+            })
+            ->sortBy('nama')
+            ->values();
+    }
+
     public function dashboard(Request $request)
     {
         $imageSimilarIds = collect(explode(',', (string) $request->input('image_similar_ids')))
@@ -155,8 +195,44 @@ class BarangController extends Controller
                 $query->where('id_tipe', $request->id_tipe);
             });
 
-        if (!empty($imageSimilarIds)) {
+        // Mode browse (belum ada pencarian teks/gambar & belum memilih tipe tertentu):
+        // tampilkan dikelompokkan per MasterTipe. Begitu user search atau memilih tipe,
+        // kembali ke tampilan varian flat seperti biasa.
+        $isBrowseMode = !$request->filled('search')
+            && empty($imageSimilarIds)
+            && !$request->boolean('image_no_results')
+            && !$request->filled('id_tipe');
+
+        $tipeList = null;
+        $variantList = null;
+
+        if ($isBrowseMode) {
+            $tipeList = $this->buildTipeSummaries($request);
+        } elseif (!empty($imageSimilarIds)) {
             $matches = (clone $baseQuery)->whereIn('id_produk_detail', $imageSimilarIds)->get();
+
+            // Petakan id_produk_detail => id_produk_gambar yang benar-benar menghasilkan
+            // skor kemiripan tertinggi (dikirim searchByImage(), sejajar urutan dgn image_similar_ids).
+            $matchedGambarIds = collect(explode(',', (string) $request->input('image_matched_gambar_ids')))
+                ->map(fn($id) => (int) trim($id))
+                ->values()
+                ->pad(count($imageSimilarIds), null)
+                ->take(count($imageSimilarIds));
+
+            $matchedGambarMap = collect($imageSimilarIds)
+                ->combine($matchedGambarIds)
+                ->filter();
+
+            $matches->each(function ($item) use ($matchedGambarMap) {
+                $matchedId = $matchedGambarMap[$item->id_produk_detail] ?? null;
+
+                if ($matchedId && $item->relationLoaded('gambars')) {
+                    $item->setRelation(
+                        'gambars',
+                        $item->gambars->sortByDesc(fn($g) => $g->id_produk_gambar === $matchedId)->values()
+                    );
+                }
+            });
 
             $sorted = $matches->sortBy(function ($item) use ($imageSimilarIds) {
                 $pos = array_search($item->id_produk_detail, $imageSimilarIds, true);
@@ -238,6 +314,7 @@ class BarangController extends Controller
 
         return Inertia::render('Dashboard', [
             'variantList' => $variantList,
+            'tipeList' => $tipeList,
 
             // List kategori
             'categories' => $categories,
@@ -286,11 +363,12 @@ class BarangController extends Controller
         $queryEmbedding = $result['embedding'];
 
         $scoresByDetail = [];
+        $bestGambarByDetail = [];
 
         MasterProdukDetailGambar::query()
             ->whereNotNull('embedding')
-            ->select(['id_produk_detail', 'embedding'])
-            ->chunk(200, function ($chunk) use (&$scoresByDetail, $queryEmbedding) {
+            ->select(['id_produk_gambar', 'id_produk_detail', 'embedding'])
+            ->chunk(200, function ($chunk) use (&$scoresByDetail, &$bestGambarByDetail, $queryEmbedding) {
                 foreach ($chunk as $gambar) {
                     $vector = $gambar->embedding;
 
@@ -303,6 +381,10 @@ class BarangController extends Controller
 
                     if (!isset($scoresByDetail[$detailId]) || $score > $scoresByDetail[$detailId]) {
                         $scoresByDetail[$detailId] = $score;
+                        // Simpan gambar mana yang benar-benar menghasilkan skor tertinggi,
+                        // supaya nanti bisa ditampilkan sebagai foto utama di hasil pencarian
+                        // (produk bisa punya banyak foto, belum tentu foto pertamanya yang cocok).
+                        $bestGambarByDetail[$detailId] = $gambar->id_produk_gambar;
                     }
                 }
             });
@@ -325,8 +407,11 @@ class BarangController extends Controller
             ])->with('error', 'Tidak ditemukan produk yang mirip dengan gambar ini.');
         }
 
+        $matchedGambarIds = array_map(fn($id) => $bestGambarByDetail[$id] ?? '', $rankedIds);
+
         return redirect()->route('dashboard', [
             'image_similar_ids' => implode(',', $rankedIds),
+            'image_matched_gambar_ids' => implode(',', $matchedGambarIds),
             'image_keyword' => Str::limit($result['description'], 140),
             'image_path' => $imagePath,
         ]);
