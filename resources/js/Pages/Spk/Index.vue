@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, router, Link } from '@inertiajs/vue3';
+import { Head, router, Link, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
@@ -19,6 +19,9 @@ const props = defineProps({
     spks: Object,
     filters: Object,
 });
+
+// Hanya admin (user yang ada di vw_admin_sos) yang boleh mengubah ketersediaan barang.
+const canEditKetersediaan = computed(() => !!usePage().props.auth?.user?.is_ho_user);
 
 const selectedSpk = ref(null);
 const showDetail = ref(false);
@@ -202,8 +205,12 @@ const isKetersediaanLocked = (spk) => {
     return Number(spk.is_available) === 1 || Number(spk.is_available) === 2;
 };
 
+const isKetersediaanDisabled = (spk) => {
+    return !canEditKetersediaan.value || isKetersediaanLocked(spk);
+};
+
 const changeKetersediaan = (spk, statusBaru) => {
-    if (isKetersediaanLocked(spk)) {
+    if (isKetersediaanDisabled(spk)) {
         return;
     }
 
@@ -423,7 +430,7 @@ const changeKetersediaan = (spk, statusBaru) => {
                             <div class="grid grid-cols-3 gap-1.5 mt-1">
                                 <button
                                     type="button"
-                                    :disabled="isKetersediaanLocked(spk)"
+                                    :disabled="isKetersediaanDisabled(spk)"
                                     class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     :class="(!spk.is_available || Number(spk.is_available) === 0) ? 'bg-yellow-600 text-white border-yellow-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     @click="changeKetersediaan(spk, 0)"
@@ -432,7 +439,7 @@ const changeKetersediaan = (spk, statusBaru) => {
                                 </button>
                                 <button
                                     type="button"
-                                    :disabled="isKetersediaanLocked(spk)"
+                                    :disabled="isKetersediaanDisabled(spk)"
                                     class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     :class="Number(spk.is_available) === 1 ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     @click="changeKetersediaan(spk, 1)"
@@ -441,7 +448,7 @@ const changeKetersediaan = (spk, statusBaru) => {
                                 </button>
                                 <button
                                     type="button"
-                                    :disabled="isKetersediaanLocked(spk)"
+                                    :disabled="isKetersediaanDisabled(spk)"
                                     class="py-1.5 text-[11px] font-medium rounded-lg border text-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     :class="Number(spk.is_available) === 2 ? 'bg-red-600 text-white border-red-600' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'"
                                     @click="changeKetersediaan(spk, 2)"

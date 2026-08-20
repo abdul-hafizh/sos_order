@@ -87,7 +87,7 @@ class SpkController extends Controller
 
         $spks = Spk::query()
             ->with(['barang.produk.gambars', 'cabang', 'gambars'])
-            ->when(! $user->is_admin, function ($query) use ($user) {
+            ->when(! $user->is_ho_user, function ($query) use ($user) {
                 $query->where('kode_cabang', $user->kode_cabang);
             })
             ->when($request->search, function ($query, $search) {
@@ -121,6 +121,8 @@ class SpkController extends Controller
 
     public function updateKetersediaan(Request $request, $id)
     {
+        abort_unless($request->user()->is_ho_user, 403, 'Hanya admin yang bisa mengubah ketersediaan barang.');
+
         $validated = $request->validate([
             'is_available' => 'required|integer|in:0,1,2',
         ]);
@@ -206,7 +208,7 @@ class SpkController extends Controller
         $spk = Spk::with(['barang.details.gambars', 'cabang', 'gambars'])->findOrFail($id);
 
         $user = $request->user();
-        abort_unless($user->is_admin || $spk->kode_cabang === $user->kode_cabang, 403);
+        abort_unless($user->is_ho_user || $spk->kode_cabang === $user->kode_cabang, 403);
 
         return Inertia::render('Spk/Show', [
             'spk' => $spk,

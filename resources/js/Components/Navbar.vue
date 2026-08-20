@@ -40,8 +40,7 @@ const props = defineProps({
 
 const emit = defineEmits(['toggleCart', 'openImageSearchModal', 'openLoginModal']);
 
-const isHoUser = computed(() => props.user?.kode_cabang === 'GSOS');
-const isAdmin = computed(() => !!props.user?.is_admin);
+const isHoUser = computed(() => !!props.user?.is_ho_user);
 const currentCabangName = computed(() => props.user?.cabang?.cabang_nama || props.user?.kode_cabang);
 
 const searchQuery = ref(props.filters?.search || '');
@@ -238,7 +237,7 @@ const selectCategoryQuick = (code) => {
                             </template>
                             <template #content>
                                 <DropdownLink :href="route('profile.edit')">Profile Saya</DropdownLink>
-                                <DropdownLink v-if="isHoUser" :href="route('spk.index')">SPK Saya</DropdownLink>
+                                <DropdownLink :href="route('spk.index')">SPK Saya</DropdownLink>
                                 <DropdownLink :href="route('logout')" method="post" as="button" class="text-red-600">Log Out</DropdownLink>
                             </template>
                         </Dropdown>
@@ -294,7 +293,7 @@ const selectCategoryQuick = (code) => {
                     </Link>
 
                     <Link
-                        v-if="isHoUser"
+                        v-if="user"
                         :href="route('spk.index')"
                         class="hover:text-indigo-600"
                         :class="isActive('spk.index') || route().current('spk.*') ? 'text-indigo-600' : 'text-slate-600'"
@@ -303,7 +302,7 @@ const selectCategoryQuick = (code) => {
                     </Link>
 
                     <Link
-                        v-if="isAdmin"
+                        v-if="isHoUser"
                         :href="route('barang.index')"
                         class="hover:text-indigo-600"
                         :class="isActive('barang.index') || route().current('barang.*') ? 'text-indigo-600' : 'text-slate-600'"
@@ -311,7 +310,7 @@ const selectCategoryQuick = (code) => {
                         Kelola Barang
                     </Link>
 
-                    <Dropdown v-if="isAdmin" align="right" width="48">
+                    <Dropdown v-if="isHoUser" align="right" width="48">
                         <template #trigger>
                             <button class="hover:text-indigo-600 flex items-center space-x-1 text-slate-600 cursor-pointer">
                                 <span>Master Data</span>
@@ -337,7 +336,7 @@ const selectCategoryQuick = (code) => {
                         :href="route('admin-ho.index')"
                         class="hover:text-indigo-600 text-slate-600"
                     >
-                        Admin GSOS
+                        Admin
                     </Link>
                 </div>
             </div>
@@ -384,7 +383,7 @@ const selectCategoryQuick = (code) => {
                 </Link>
 
                 <Link
-                    v-if="isHoUser"
+                    v-if="user"
                     :href="route('spk.index')"
                     @click="mobileMenuOpen = false"
                     class="flex items-center space-x-2 p-2.5 rounded-xl hover:bg-slate-100"
@@ -395,7 +394,7 @@ const selectCategoryQuick = (code) => {
                 </Link>
 
                 <Link
-                    v-if="isAdmin"
+                    v-if="isHoUser"
                     :href="route('barang.index')"
                     @click="mobileMenuOpen = false"
                     class="flex items-center space-x-2 p-2.5 rounded-xl hover:bg-slate-100"
@@ -411,7 +410,7 @@ const selectCategoryQuick = (code) => {
                     class="flex items-center space-x-2 p-2.5 rounded-xl hover:bg-slate-100"
                 >
                     <ShieldCheckIcon class="w-4 h-4 text-indigo-600" />
-                    <span>Admin GSOS HO</span>
+                    <span>Admin</span>
                 </Link>
             </div>
         </div>

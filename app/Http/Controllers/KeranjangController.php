@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminSos;
 use App\Models\Barang;
 use App\Models\Keranjang;
 use App\Models\KeranjangDetail;
 use App\Models\Spk;
 use App\Models\SpkGambar;
-use App\Models\User;
 use App\Libraries\SendTelegram;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -202,15 +202,28 @@ class KeranjangController extends Controller
 
         DB::transaction(function () use ($items, $keranjang, &$barangBaruItems) {
             $user = auth()->user();
+            $period = now()->format('Y-m-d');
+            $kodeCabang = $user->kode_cabang ?? null;
+
+            // po_ke mengacu ke kode_cabang: kalau cabang ini sudah pesan di hari yang
+            // sama (period), po_ke lanjut dari yang terakhir + 1. Dihitung di PHP
+            // (bukan MAX() di SQL) karena po_ke bertipe varchar di database.
+            $lastPoKe = Spk::where('kode_cabang', $kodeCabang)
+                ->where('period', $period)
+                ->pluck('po_ke')
+                ->map(fn($value) => (int) $value)
+                ->max();
+
+            $poKe = $lastPoKe ? $lastPoKe + 1 : 1;
 
             foreach ($items as $item) {
                 // Barang baru sengaja TIDAK di-provision ke t_barang di sini.
                 // kode_barang baru digenerate saat admin klik "Tersedia" di menu SPK.
                 $spk = Spk::create([
-                    'period' => now()->format('Y-m-d'),
-                    'po_ke' => 1,
+                    'period' => $period,
+                    'po_ke' => $poKe,
 
-                    'kode_cabang' => $user->kode_cabang ?? null,
+                    'kode_cabang' => $kodeCabang,
 
                     'kode_barang' => $item->barang?->kode_barang,
                     'nama_barang' => Str::limit($item->nama_barang, 50, ''),
@@ -280,8 +293,7 @@ class KeranjangController extends Controller
 
     private function notifyAdminBarangBaru($items, $requester)
     {
-        $admins = User::where('kode_cabang', 'GSOS')
-            ->where('is_admin', 1)
+        $admins = AdminSos::where('is_admin', 1)
             ->whereNotNull('telegram_chat_id')
             ->where('telegram_chat_id', '!=', '')
             ->get();
@@ -335,6 +347,8 @@ class KeranjangController extends Controller
         ]);
 
         $detail = KeranjangDetail::findOrFail($id);
+
+        abort_unless($detail->tipe_item === 'barang_baru', 403, 'Upload foto sampel hanya untuk barang permintaan baru.');
 
         foreach ($request->file('gambar') as $file) {
             $path = $file->store('permintaan-barang', 'public');

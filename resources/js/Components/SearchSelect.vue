@@ -20,6 +20,10 @@ const props = defineProps({
         type: String,
         default: "Pilih Data...",
     },
+    disabled: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -52,6 +56,11 @@ const choose = (item) => {
     open.value = false;
 };
 
+const toggleOpen = () => {
+    if (props.disabled) return;
+    open.value = !open.value;
+};
+
 const closeOutside = (e) => {
     if (!wrapper.value?.contains(e.target)) {
         open.value = false;
@@ -76,8 +85,10 @@ onBeforeUnmount(() => {
 
         <button
             type="button"
-            @click="open = !open"
-            class="w-full border rounded-md px-3 py-2 bg-white flex justify-between items-center"
+            @click="toggleOpen"
+            :disabled="disabled"
+            class="w-full border rounded-md px-3 py-2 flex justify-between items-center"
+            :class="disabled ? 'bg-gray-100 cursor-not-allowed opacity-70' : 'bg-white'"
         >
             <span
                 :class="selectedLabel ? 'text-black' : 'text-gray-400'"
@@ -89,7 +100,7 @@ onBeforeUnmount(() => {
         </button>
 
         <div
-            v-if="open"
+            v-if="open && !disabled"
             class="absolute left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50"
         >
             <div class="p-2 border-b">

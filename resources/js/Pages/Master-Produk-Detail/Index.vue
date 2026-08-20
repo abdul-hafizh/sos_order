@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useForm, router, Link, Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -10,10 +10,8 @@ import SearchSelect from '@/Components/SearchSelect.vue';
 import {
     Boxes,
     Pencil,
-    Trash,
     Search,
     ImagePlus,
-    Upload,
     X,
     Loader2,
 } from 'lucide-vue-next';
@@ -33,9 +31,7 @@ const props = defineProps({
 });
 
 const showModal = ref(false);
-const showDeleteModal = ref(false);
 const editingProdukDetail = ref(null);
-const produkDetailToDelete = ref(null);
 const isSubmitting = ref(false);
 
 const params = ref({
@@ -95,7 +91,8 @@ const removePreview = (index) => {
     previews.value.splice(index, 1);
 };
 
-// --- Kode barang combobox (async search) ---
+// Kode Barang di mode edit tidak bisa diubah (lihat template) - kalau bikin baru
+// (belum ada editingProdukDetail), dropdown pencarian barang ini yang dipakai.
 const barangOptions = ref([]);
 const barangKeyword = ref('');
 const showBarangDropdown = ref(false);
@@ -205,58 +202,15 @@ const submit = () => {
                 onFinish: () => { isSubmitting.value = false; },
             }
         );
-    } else {
-        form.post(route('master-produk-detail.store'), {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => closeModal(),
-            onFinish: () => { isSubmitting.value = false; },
-        });
-    }
-};
 
-const confirmDelete = (item) => {
-    produkDetailToDelete.value = item;
-    showDeleteModal.value = true;
-};
-
-const destroyProdukDetail = () => {
-    router.delete(route('master-produk-detail.destroy', produkDetailToDelete.value.id_produk_detail), {
-        onSuccess: () => {
-            showDeleteModal.value = false;
-            produkDetailToDelete.value = null;
-        },
-    });
-};
-
-// --- Sinkron ke m_item: tombol hanya aktif kalau atribut produk detail
-// (kode barang, type, satuan, UOM) dan seluruh harga di t_barang sudah terisi.
-const isReadyForMItem = (item) => {
-    const hasDetail = !!(item.kode_barang && item.id_tipe && item.id_satuan && item.id_uom);
-
-    const barang = item.barang;
-    const hargaFields = [
-        barang?.harga_beli_before,
-        barang?.harga_beli,
-        barang?.harga_jual_before,
-        barang?.harga_jual,
-        barang?.harga_jual_jumbo,
-        barang?.harga_jual_jumbo_before,
-    ];
-    const hasHarga = !!barang && hargaFields.every((v) => v !== null && v !== undefined && Number(v) > 0);
-
-    return hasDetail && hasHarga;
-};
-
-const syncMItem = (item) => {
-    if (!isReadyForMItem(item)) return;
-
-    if (!confirm(`Sinkronkan "${item.kode_barang}" ke tabel m_item sekarang?`)) {
         return;
     }
 
-    router.post(route('master-produk-detail.sync-m-item', item.id_produk_detail), {}, {
+    form.post(route('master-produk-detail.store'), {
+        forceFormData: true,
         preserveScroll: true,
+        onSuccess: () => closeModal(),
+        onFinish: () => { isSubmitting.value = false; },
     });
 };
 </script>
@@ -347,16 +301,7 @@ const syncMItem = (item) => {
                             </td>
                             <td class="p-3">
                                 <div class="flex gap-2 justify-center">
-                                    <Button
-                                        variant="ghost"
-                                        size="xs"
-                                        class="bg-green-500 text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
-                                        :disabled="!isReadyForMItem(item)"
-                                        :title="isReadyForMItem(item) ? 'Sinkron ke m_item' : 'Lengkapi kode barang, type, satuan, UOM, dan seluruh harga terlebih dahulu'"
-                                        @click="syncMItem(item)"
-                                    ><Upload class="w-4 h-4" /></Button>
                                     <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md" @click="openModal(item)"><Pencil class="w-4 h-4" /></Button>
-                                    <Button variant="ghost" size="xs" class="bg-red-500 text-white rounded-md" @click="confirmDelete(item)"><Trash class="w-4 h-4" /></Button>
                                 </div>
                             </td>
                         </tr>
@@ -402,16 +347,7 @@ const syncMItem = (item) => {
                     </div>
 
                     <div class="flex gap-2 justify-end mt-3">
-                        <Button
-                            variant="ghost"
-                            size="xs"
-                            class="bg-green-500 text-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
-                            :disabled="!isReadyForMItem(item)"
-                            :title="isReadyForMItem(item) ? 'Sinkron ke m_item' : 'Lengkapi kode barang, type, satuan, UOM, dan seluruh harga terlebih dahulu'"
-                            @click="syncMItem(item)"
-                        ><Upload class="w-4 h-4" /></Button>
                         <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md" @click="openModal(item)"><Pencil class="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="xs" class="bg-red-500 text-white rounded-md" @click="confirmDelete(item)"><Trash class="w-4 h-4" /></Button>
                     </div>
                 </div>
 
@@ -436,7 +372,10 @@ const syncMItem = (item) => {
                     <form @submit.prevent="submit" class="space-y-4">
                         <div>
                             <label class="text-xs text-gray-400 font-medium">Produk</label>
-                            <SearchSelect v-model="form.id_produk" :options="list_produk" value-key="id_produk" label-key="nama_produk" placeholder="Pilih Produk..." />
+                            <SearchSelect v-model="form.id_produk" :options="list_produk" value-key="id_produk" label-key="nama_produk" placeholder="Pilih Produk..." :disabled="!!editingProdukDetail" />
+                            <p class="text-xs text-gray-400 mt-1">
+                                {{ editingProdukDetail ? 'Nama produk tidak bisa diubah dari sini.' : '' }}
+                            </p>
                             <p v-if="form.errors.id_produk" class="text-sm text-red-500 mt-1">{{ form.errors.id_produk }}</p>
                         </div>
 
@@ -448,46 +387,63 @@ const syncMItem = (item) => {
 
                         <div>
                             <label class="text-xs text-gray-400 font-medium">Kode Barang (t_barang)</label>
-                            <div class="relative" ref="barangWrapper">
-                                <div v-if="selectedBarang" class="flex items-center justify-between border rounded-md px-3 py-2 bg-slate-50">
+
+                            <template v-if="editingProdukDetail">
+                                <div v-if="selectedBarang" class="flex items-center border rounded-md px-3 py-2 bg-slate-100">
                                     <div class="text-sm">
                                         <span class="font-semibold">{{ selectedBarang.kode_barang }}</span>
                                         <span v-if="selectedBarang.nama_barang" class="text-gray-500"> - {{ selectedBarang.nama_barang }}</span>
                                     </div>
-                                    <button type="button" @click="clearBarang" class="text-gray-400 hover:text-red-500">
-                                        <X class="w-4 h-4" />
-                                    </button>
                                 </div>
+                                <div v-else class="border rounded-md px-3 py-2 bg-slate-100 text-sm text-gray-400">
+                                    Belum terhubung
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1">Kode barang tidak bisa diubah dari sini.</p>
+                            </template>
 
-                                <template v-else>
-                                    <div class="relative">
-                                        <Search class="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
-                                        <input
-                                            v-model="barangKeyword"
-                                            @focus="openBarangDropdown"
-                                            placeholder="Cari nama / kode barang..."
-                                            class="w-full border rounded-md pl-8 pr-2 py-2 text-sm"
-                                        />
-                                    </div>
-
-                                    <div v-if="showBarangDropdown" class="absolute left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto">
-                                        <div v-if="barangOptions.length === 0" class="text-center text-gray-500 py-4 text-sm">
-                                            Tidak ada barang tersedia
+                            <template v-else>
+                                <div class="relative" ref="barangWrapper">
+                                    <div v-if="selectedBarang" class="flex items-center justify-between border rounded-md px-3 py-2 bg-slate-50">
+                                        <div class="text-sm">
+                                            <span class="font-semibold">{{ selectedBarang.kode_barang }}</span>
+                                            <span v-if="selectedBarang.nama_barang" class="text-gray-500"> - {{ selectedBarang.nama_barang }}</span>
                                         </div>
-                                        <button
-                                            v-for="opt in barangOptions"
-                                            :key="opt.id_barang"
-                                            type="button"
-                                            @click="chooseBarang(opt)"
-                                            class="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
-                                        >
-                                            <span class="font-medium">{{ opt.kode_barang }}</span>
-                                            <span class="text-gray-500"> - {{ opt.nama_barang }}</span>
+                                        <button type="button" @click="clearBarang" class="text-gray-400 hover:text-red-500">
+                                            <X class="w-4 h-4" />
                                         </button>
                                     </div>
-                                </template>
-                            </div>
-                            <p class="text-xs text-gray-400 mt-1">Hanya barang yang belum terhubung ke produk detail lain yang muncul di daftar.</p>
+
+                                    <template v-else>
+                                        <div class="relative">
+                                            <Search class="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
+                                            <input
+                                                v-model="barangKeyword"
+                                                @focus="openBarangDropdown"
+                                                placeholder="Cari nama / kode barang..."
+                                                class="w-full border rounded-md pl-8 pr-2 py-2 text-sm"
+                                            />
+                                        </div>
+
+                                        <div v-if="showBarangDropdown" class="absolute left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto">
+                                            <div v-if="barangOptions.length === 0" class="text-center text-gray-500 py-4 text-sm">
+                                                Tidak ada barang tersedia
+                                            </div>
+                                            <button
+                                                v-for="opt in barangOptions"
+                                                :key="opt.id_barang"
+                                                type="button"
+                                                @click="chooseBarang(opt)"
+                                                class="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
+                                            >
+                                                <span class="font-medium">{{ opt.kode_barang }}</span>
+                                                <span class="text-gray-500"> - {{ opt.nama_barang }}</span>
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1">Hanya barang yang belum terhubung ke produk detail lain yang muncul di daftar. Boleh dikosongkan.</p>
+                            </template>
+
                             <p v-if="form.errors.kode_barang" class="text-sm text-red-500 mt-1">{{ form.errors.kode_barang }}</p>
                         </div>
 
@@ -548,17 +504,6 @@ const syncMItem = (item) => {
                             </Button>
                         </div>
                     </form>
-                </div>
-            </div>
-
-            <div v-if="showDeleteModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div class="bg-white p-6 rounded-lg w-full max-w-sm shadow-xl">
-                    <h2 class="font-bold text-lg mb-2">Konfirmasi Hapus</h2>
-                    <p>Yakin ingin menghapus produk detail {{ produkDetailToDelete?.produk?.nama_produk }}?</p>
-                    <div class="flex justify-end gap-2 mt-4">
-                        <Button variant="outline" @click="showDeleteModal = false">Batal</Button>
-                        <Button class="bg-red-600 text-white" @click="destroyProdukDetail">Hapus</Button>
-                    </div>
                 </div>
             </div>
         </div>

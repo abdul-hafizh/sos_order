@@ -79,7 +79,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('produk', ProdukController::class);
         Route::resource('divisi', DivisiController::class);
         Route::resource('vendor', VendorController::class);
-        Route::resource('barang', BarangController::class);
+        Route::resource('barang', BarangController::class)->except(['create', 'store']);
         Route::resource('master-barang', MasterBarangController::class);
 
         Route::resource('master-kategori', MasterKategoriController::class)->only(['index', 'update']);
@@ -95,9 +95,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('master-produk-detail-barang-options', [MasterProdukDetailController::class, 'barangOptions'])
             ->name('master-produk-detail.barang-options');
-        Route::post('master-produk-detail/{id}/sync-m-item', [MasterProdukDetailController::class, 'syncMItem'])
-            ->name('master-produk-detail.sync-m-item');
-        Route::resource('master-produk-detail', MasterProdukDetailController::class);
+        Route::resource('master-produk-detail', MasterProdukDetailController::class)->only(['index', 'store', 'update']);
 
         Route::resource('master-uom', MasterUomController::class);
 

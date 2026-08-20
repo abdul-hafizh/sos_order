@@ -3,7 +3,7 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import LoginModal from "@/Components/LoginModal.vue";
 import ImageSearchModal from "@/Components/ImageSearchModal.vue";
 import { Head, Link, router, useForm, usePage } from "@inertiajs/vue3";
-import { ref, watch, computed, onMounted } from "vue";
+import { ref, watch, computed, onMounted, onBeforeUnmount } from "vue";
 import { Input } from "@/Components/ui/input";
 import { Button } from "@/Components/ui/button";
 import {
@@ -34,6 +34,8 @@ import {
     BadgeCheck,
     Info,
     ChevronDown,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -629,6 +631,13 @@ onMounted(() => {
             catalogSectionRef.value?.scrollIntoView({ behavior: 'smooth' });
         }, 200);
     }
+
+    updateCategoryScrollState();
+    window.addEventListener("resize", updateCategoryScrollState);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener("resize", updateCategoryScrollState);
 });
 
 const rupiah = (value) => {
@@ -690,6 +699,30 @@ const quickCategoryIcons = computed(() => [
         catCode: cat.code,
     })),
 ]);
+
+// Kategori Pilihan Pengadaan: horizontal carousel yang digeser lewat tombol panah,
+// bukan dengan menarik scrollbar secara langsung.
+const categoryScrollRef = ref(null);
+const canScrollCategoryLeft = ref(false);
+const canScrollCategoryRight = ref(false);
+
+const updateCategoryScrollState = () => {
+    const el = categoryScrollRef.value;
+    if (!el) return;
+    canScrollCategoryLeft.value = el.scrollLeft > 4;
+    canScrollCategoryRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+};
+
+const scrollCategoryList = (direction) => {
+    const el = categoryScrollRef.value;
+    if (!el) return;
+    const amount = Math.max(el.clientWidth * 0.8, 200);
+    el.scrollBy({ left: direction === "left" ? -amount : amount, behavior: "smooth" });
+};
+
+watch(quickCategoryIcons, () => {
+    updateCategoryScrollState();
+});
 </script>
 
 <template>
@@ -771,23 +804,47 @@ const quickCategoryIcons = computed(() => [
                 </div>
             </div>
 
-            <!-- 2. Point 2: Category Section Evenly Aligned Grid ("kategori pada dashboard diratakan") -->
+            <!-- 2. Point 2: Category Section - Horizontal Carousel dengan Tombol Panah ("kategori pada dashboard diratakan") -->
             <div class="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-2 text-slate-900 font-black text-base">
                         <Grid class="w-5 h-5 text-indigo-600" />
                         <span>Kategori Pilihan Pengadaan</span>
                     </div>
+
+                    <!-- Left/Right Navigation Buttons: geser daftar kategori, bukan lewat drag scrollbar -->
+                    <div class="flex items-center space-x-1.5">
+                        <button
+                            type="button"
+                            @click="scrollCategoryList('left')"
+                            :disabled="!canScrollCategoryLeft"
+                            class="w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-600 disabled:hover:border-slate-200"
+                        >
+                            <ChevronLeft class="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            @click="scrollCategoryList('right')"
+                            :disabled="!canScrollCategoryRight"
+                            class="w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-600 disabled:hover:border-slate-200"
+                        >
+                            <ChevronRight class="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Point 2: 10 Evenly Aligned Category Icon Cards Grid -->
-                <div class="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-3 justify-items-stretch">
+                <!-- Point 2: Category Icon Cards - Scroll Horizontal (klik panah untuk geser, bukan drag scrollbar) -->
+                <div
+                    ref="categoryScrollRef"
+                    class="flex items-stretch gap-3 overflow-x-auto no-scrollbar scroll-smooth pt-2 pb-1"
+                    @scroll="updateCategoryScrollState"
+                >
                     <button
                         v-for="(item, idx) in quickCategoryIcons"
                         :key="idx"
                         type="button"
                         @click="selectCategory(item.catCode)"
-                        class="w-full h-full flex flex-col items-center justify-center p-3 rounded-2xl border transition duration-200 group cursor-pointer hover:-translate-y-1 shadow-2xs text-center min-h-[90px]"
+                        class="shrink-0 w-[26vw] max-w-28 sm:w-28 md:w-32 flex flex-col items-center justify-center p-3 rounded-2xl border transition duration-200 group cursor-pointer hover:-translate-y-1 shadow-2xs text-center min-h-[90px]"
                         :class="selectedCategory === item.catCode && item.catCode ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200/80 hover:border-indigo-400 hover:bg-slate-50'"
                     >
                         <div class="w-11 h-11 rounded-2xl bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white transition flex items-center justify-center overflow-hidden shadow-2xs mb-1">
@@ -1402,6 +1459,10 @@ const quickCategoryIcons = computed(() => [
                                         {{ item.tipe_item === 'barang_baru' ? 'Permintaan Barang Baru' : 'Barang Terdaftar' }}
                                     </span>
 
+                                    <div v-if="item.tipe_item !== 'barang_baru'" class="text-[11px] font-extrabold text-slate-900 mt-0.5">
+                                        {{ rupiah(item.barang?.harga_jual) }}
+                                    </div>
+
                                     <div class="flex items-center space-x-2 mt-2">
                                         <button type="button" class="w-6 h-6 rounded-md bg-white border border-slate-300 flex items-center justify-center text-xs font-bold" @click="updateCartQty(item, Number(item.qty) - 1)">
                                             -
@@ -1418,8 +1479,8 @@ const quickCategoryIcons = computed(() => [
                                 </button>
                             </div>
 
-                            <!-- Multiple Sample Photos Section for Cart Item -->
-                            <div class="pt-2 border-t border-slate-200/60 mt-2">
+                            <!-- Multiple Sample Photos Section for Cart Item: khusus barang permintaan baru -->
+                            <div v-if="item.tipe_item === 'barang_baru'" class="pt-2 border-t border-slate-200/60 mt-2">
                                 <div v-if="item.gambar?.length" class="flex flex-wrap gap-1.5 mb-2">
                                     <div
                                         v-for="(img, idx) in item.gambar"
@@ -1452,3 +1513,13 @@ const quickCategoryIcons = computed(() => [
         </div>
     </AuthenticatedLayout>
 </template>
+
+<style scoped>
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>

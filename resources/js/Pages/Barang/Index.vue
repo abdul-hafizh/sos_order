@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref } from "vue";
 import { useForm, router, Link, Head } from "@inertiajs/vue3";
 import axios from "axios";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
@@ -9,15 +9,15 @@ import SearchSelect from "@/Components/SearchSelect.vue";
 import {
     Package,
     Pencil,
-    Plus,
     X,
     Search,
     Layers,
-    ShoppingBag,
     CirclePile,
     ArrowUp,
     ArrowDown,
     Minus,
+    ImagePlus,
+    Loader2,
 } from "lucide-vue-next";
 import {
     Table,
@@ -32,11 +32,20 @@ const props = defineProps({
     barangs: Object,
     filters: Object,
     list_satuan: Array,
+    list_produk: Array,
+    list_kategori: Array,
+    list_tipe: Array,
+    list_berat: Array,
+    list_ukuran: Array,
+    list_warna: Array,
+    list_karakter: Array,
+    list_uom: Array,
 });
 
 const showModal = ref(false);
 const editingBarang = ref(null);
-const activeTab = ref("produk");
+const activeTab = ref("barang");
+const isSubmitting = ref(false);
 
 const params = ref({
     search: props.filters.search || "",
@@ -105,6 +114,20 @@ const emptyVariant = () => ({
     deleted_gambar_ids: [],
 });
 
+const emptyDetail = () => ({
+    id_produk: null,
+    category_id: null,
+    id_tipe: null,
+    id_satuan: null,
+    id_berat: null,
+    id_ukuran: null,
+    id_warna: null,
+    id_karakter: null,
+    id_uom: null,
+    foto: [],
+    deleted_gambar_ids: [],
+});
+
 const form = useForm({
     nama_barang: "",
     harga_beli: 0,
@@ -113,46 +136,51 @@ const form = useForm({
     harga_jual_before: 0,
     harga_jual_jumbo: 0,
     harga_jual_jumbo_before: 0,
-    satuan: "",
     stok: 0,
     qty_pos: 0,
     min_stok: 0,
     max_stok: 0,
-    category_code: "",
     variants: [emptyVariant()],
+    detail: emptyDetail(),
 });
 
-const categoryMaster = ref([]);
-const categoryKeyword = ref("");
-const showCategoryDropdown = ref(false);
+const detailPreviews = ref([]);
 
-const loadCategory = async () => {
-    const res = await axios.get(route("category.list"));
-    categoryMaster.value = res.data;
+const handleDetailFoto = (event) => {
+    const files = Array.from(event.target.files || []);
+
+    files.forEach((file) => {
+        form.detail.foto.push(file);
+        detailPreviews.value.push({
+            type: "new",
+            file,
+            url: URL.createObjectURL(file),
+        });
+    });
+
+    event.target.value = "";
 };
 
-onMounted(() => {
-    loadCategory();
-});
+const removeDetailPreview = (index) => {
+    const preview = detailPreviews.value[index];
 
-const filteredCategory = computed(() => {
-    if (!categoryKeyword.value) return categoryMaster.value;
+    if (preview.type === "old") {
+        form.detail.deleted_gambar_ids.push(preview.id_produk_gambar);
+    }
 
-    return categoryMaster.value.filter(
-        (item) =>
-            item.categoryname
-                .toLowerCase()
-                .includes(categoryKeyword.value.toLowerCase()) ||
-            item.categorycode
-                .toLowerCase()
-                .includes(categoryKeyword.value.toLowerCase()),
-    );
-});
+    if (preview.type === "new") {
+        const fileIndex = form.detail.foto.findIndex(
+            (file) => file === preview.file,
+        );
 
-const selectCategory = (item) => {
-    form.category_code = item.categorycode;
-    categoryKeyword.value = item.categoryname;
-    showCategoryDropdown.value = false;
+        if (fileIndex !== -1) {
+            form.detail.foto.splice(fileIndex, 1);
+        }
+
+        URL.revokeObjectURL(preview.url);
+    }
+
+    detailPreviews.value.splice(index, 1);
 };
 
 const rupiah = (value) => {
@@ -165,58 +193,85 @@ const rupiah = (value) => {
     }).format(value);
 };
 
-const openModal = (item = null) => {
+const openModal = (item) => {
     editingBarang.value = item;
-    activeTab.value = "produk";
+    activeTab.value = "barang";
+    form.clearErrors();
 
-    if (item) {
-        form.nama_barang = item.nama_barang;
-        form.harga_beli = item.harga_beli ?? 0;
-        form.harga_beli_before = item.harga_beli_before ?? 0;
-        form.harga_jual = item.harga_jual ?? 0;
-        form.harga_jual_before = item.harga_jual_before ?? 0;
-        form.harga_jual_jumbo = item.harga_jual_jumbo ?? 0;
-        form.harga_jual_jumbo_before = item.harga_jual_jumbo_before ?? 0;
-        form.satuan = item.satuan ?? "";
-        form.stok = item.stok ?? 0;
-        form.qty_pos = item.qty_pos ?? 0;
-        form.min_stok = item.min_stok ?? 0;
-        form.max_stok = item.max_stok ?? 0;
-        form.category_code = item.category_code ?? "";
+    form.nama_barang = item.nama_barang;
+    form.harga_beli = item.harga_beli ?? 0;
+    form.harga_beli_before = item.harga_beli_before ?? 0;
+    form.harga_jual = item.harga_jual ?? 0;
+    form.harga_jual_before = item.harga_jual_before ?? 0;
+    form.harga_jual_jumbo = item.harga_jual_jumbo ?? 0;
+    form.harga_jual_jumbo_before = item.harga_jual_jumbo_before ?? 0;
+    form.stok = item.stok ?? 0;
+    form.qty_pos = item.qty_pos ?? 0;
+    form.min_stok = item.min_stok ?? 0;
+    form.max_stok = item.max_stok ?? 0;
 
-        categoryKeyword.value = item.category?.categoryname || "";
+    form.variants = item.details?.length
+        ? item.details.map((detail) => ({
+              id_barang_detail: detail.id_barang_detail,
+              nama_variant: detail.nama_variant,
+              kode_variant: detail.kode_variant,
+              harga_beli: detail.harga_beli ?? 0,
+              harga_jual: detail.harga_jual ?? 0,
+              harga_jual_jumbo: detail.harga_jual_jumbo ?? 0,
+              stok: detail.stok ?? 0,
 
-        form.variants = item.details?.length
-            ? item.details.map((detail) => ({
-                  id_barang_detail: detail.id_barang_detail,
-                  nama_variant: detail.nama_variant,
-                  kode_variant: detail.kode_variant,
-                  harga_beli: detail.harga_beli ?? 0,
-                  harga_jual: detail.harga_jual ?? 0,
-                  harga_jual_jumbo: detail.harga_jual_jumbo ?? 0,
-                  stok: detail.stok ?? 0,
+              gambars: [],
+              old_gambars: detail.gambars || [],
 
-                  gambars: [],
-                  old_gambars: detail.gambars || [],
+              previews:
+                  detail.gambars?.map((g) => ({
+                      type: "old",
+                      id_barang_gambar: g.id_barang_gambar,
+                      url: `/storage/${g.path_file}`,
+                  })) || [],
 
-                  previews:
-                      detail.gambars?.map((g) => ({
-                          type: "old",
-                          id_barang_gambar: g.id_barang_gambar,
-                          url: `/storage/${g.path_file}`,
-                      })) || [],
+              deleted_gambar_ids: [],
+          }))
+        : [emptyVariant()];
 
-                  deleted_gambar_ids: [],
-              }))
-            : [emptyVariant()];
-    } else {
-        form.reset();
-        form.variants = [emptyVariant()];
-        categoryKeyword.value = "";
-    }
+    const produk = item.produk;
 
-    showCategoryDropdown.value = false;
+    form.detail = {
+        id_produk: produk?.id_produk ?? null,
+        category_id: produk?.category_id ?? null,
+        id_tipe: produk?.id_tipe ?? null,
+        id_satuan: produk?.id_satuan ?? null,
+        id_berat: produk?.id_berat ?? null,
+        id_ukuran: produk?.id_ukuran ?? null,
+        id_warna: produk?.id_warna ?? null,
+        id_karakter: produk?.id_karakter ?? null,
+        id_uom: produk?.id_uom ?? null,
+        foto: [],
+        deleted_gambar_ids: [],
+    };
+
+    detailPreviews.value = (produk?.gambars || []).map((g) => ({
+        type: "old",
+        id_produk_gambar: g.id_produk_gambar,
+        url: `/storage/${g.path_file}`,
+    }));
+
     showModal.value = true;
+};
+
+const closeModal = () => {
+    if (isSubmitting.value) return;
+
+    showModal.value = false;
+    editingBarang.value = null;
+
+    detailPreviews.value.forEach(
+        (p) => p.type === "new" && URL.revokeObjectURL(p.url),
+    );
+    detailPreviews.value = [];
+
+    form.reset();
+    form.clearErrors();
 };
 
 const addVariant = () => {
@@ -267,31 +322,75 @@ const removePreview = (variantIndex, imageIndex) => {
     variant.previews.splice(imageIndex, 1);
 };
 
+const isEmptyValue = (value) => value === null || value === undefined || value === "";
+
+// Tab "Barang": semua isian wajib diisi.
+const requiredBarangFields = [
+    ["nama_barang", "Nama Barang"],
+    ["harga_beli", "Harga Beli"],
+    ["harga_beli_before", "Harga Beli Sebelumnya"],
+    ["harga_jual", "Harga Jual"],
+    ["harga_jual_before", "Harga Jual Sebelumnya"],
+    ["harga_jual_jumbo", "Harga Jual Jumbo"],
+    ["harga_jual_jumbo_before", "Harga Jual Jumbo Sebelumnya"],
+    ["stok", "Stok Utama"],
+    ["qty_pos", "Qty POS"],
+    ["min_stok", "Min Stok"],
+    ["max_stok", "Max Stok"],
+];
+
+// Tab "Barang Detail": semua wajib diisi kecuali Berat, Ukuran, Warna & Karakter.
+const requiredDetailFields = [
+    ["category_id", "Kategori"],
+    ["id_tipe", "Type"],
+    ["id_satuan", "Satuan"],
+    ["id_uom", "UOM"],
+];
+
 const submit = () => {
-    if (editingBarang.value) {
-        router.post(
-            route("barang.update", editingBarang.value.id_barang),
-            {
-                ...form.data(),
-                _method: "put",
-            },
-            {
-                forceFormData: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    showModal.value = false;
-                },
-            },
-        );
-    } else {
-        form.post(route("barang.store"), {
+    if (!editingBarang.value) return;
+
+    for (const [field, label] of requiredBarangFields) {
+        if (isEmptyValue(form[field])) {
+            alert(`${label} pada tab Barang wajib diisi.`);
+            activeTab.value = "barang";
+            return;
+        }
+    }
+
+    for (const [field, label] of requiredDetailFields) {
+        if (isEmptyValue(form.detail[field])) {
+            alert(`${label} pada tab Barang Detail wajib diisi.`);
+            activeTab.value = "detail";
+            return;
+        }
+    }
+
+    if (detailPreviews.value.length === 0) {
+        alert("Foto Produk pada tab Barang Detail wajib diisi minimal 1 foto.");
+        activeTab.value = "detail";
+        return;
+    }
+
+    isSubmitting.value = true;
+
+    router.post(
+        route("barang.update", editingBarang.value.id_barang),
+        {
+            ...form.data(),
+            _method: "put",
+        },
+        {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
-                showModal.value = false;
+                closeModal();
             },
-        });
-    }
+            onFinish: () => {
+                isSubmitting.value = false;
+            },
+        },
+    );
 };
 
 const getTrend = (current, before) => {
@@ -422,35 +521,6 @@ const destroyVendor = () => {
         </template>
 
         <div class="p-6">
-            <div
-                class="rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-6 text-white shadow-lg mb-6"
-            >
-                <div
-                    class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-                >
-                    <div class="flex items-center gap-4">
-                        <div class="rounded-2xl bg-white/20 p-4">
-                            <ShoppingBag class="w-9 h-9" />
-                        </div>
-                        <div>
-                            <h1 class="text-2xl font-bold">Katalog Barang</h1>
-                            <p class="text-sm text-blue-100">
-                                Kelola produk seperti ecommerce: gambar, harga,
-                                stok, dan banyak varian.
-                            </p>
-                        </div>
-                    </div>
-
-                    <Button
-                        class="bg-white text-blue-700 hover:bg-blue-50"
-                        @click="openModal()"
-                    >
-                        <Plus class="w-4 h-4 mr-2" />
-                        Tambah Barang
-                    </Button>
-                </div>
-            </div>
-
             <div
                 class="bg-white rounded-3xl shadow-sm border border-gray-100 p-5"
             >
@@ -725,99 +795,61 @@ const destroyVendor = () => {
                         class="flex items-center justify-between px-6 py-4 border-b"
                     >
                         <div>
-                            <h2 class="text-xl font-bold">
-                                {{
-                                    editingBarang
-                                        ? "Edit Barang"
-                                        : "Tambah Barang"
-                                }}
-                            </h2>
+                            <h2 class="text-xl font-bold">Edit Barang</h2>
                             <p class="text-sm text-gray-400">
                                 Lengkapi data produk.
                             </p>
                         </div>
 
                         <button
-                            @click="showModal = false"
-                            class="p-2 rounded-full hover:bg-gray-100"
+                            @click="closeModal"
+                            :disabled="isSubmitting"
+                            class="p-2 rounded-full hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             <X class="w-5 h-5" />
                         </button>
                     </div>
 
+                    <div class="flex items-center gap-1 px-6 pt-4 border-b">
+                        <button
+                            type="button"
+                            @click="activeTab = 'barang'"
+                            class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition"
+                            :class="
+                                activeTab === 'barang'
+                                    ? 'border-blue-600 text-blue-700'
+                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                            "
+                        >
+                            Barang
+                        </button>
+                        <button
+                            type="button"
+                            @click="activeTab = 'detail'"
+                            class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition"
+                            :class="
+                                activeTab === 'detail'
+                                    ? 'border-blue-600 text-blue-700'
+                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                            "
+                        >
+                            Barang Detail
+                        </button>
+                    </div>
+
                     <form
                         @submit.prevent="submit"
-                        class="overflow-y-auto max-h-[72vh] p-6"
+                        class="overflow-y-auto max-h-[68vh] p-6"
                     >
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <div class="relative">
-                                <label class="text-sm font-medium text-gray-600"
-                                    >Kategori</label
-                                >
-                                <Input
-                                    v-model="categoryKeyword"
-                                    placeholder="Cari kategori..."
-                                    class="mt-1 rounded-xl"
-                                    @focus="showCategoryDropdown = true"
-                                    @input="showCategoryDropdown = true"
-                                />
-
-                                <div
-                                    v-if="showCategoryDropdown"
-                                    class="absolute z-50 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto"
-                                >
-                                    <div
-                                        v-for="item in filteredCategory"
-                                        :key="item.categorycode"
-                                        @click="selectCategory(item)"
-                                        class="px-3 py-2 hover:bg-blue-50 cursor-pointer"
-                                    >
-                                        <div class="font-medium">
-                                            {{ item.categoryname }}
-                                        </div>
-                                        <div class="text-xs text-gray-500">
-                                            {{ item.categorycode }}
-                                        </div>
-                                    </div>
-
-                                    <div
-                                        v-if="filteredCategory.length === 0"
-                                        class="px-3 py-2 text-gray-400 text-sm"
-                                    >
-                                        Tidak ada kategori ditemukan
-                                    </div>
-                                </div>
-
-                                <p
-                                    v-if="form.errors.category_code"
-                                    class="text-xs text-red-500 mt-1"
-                                >
-                                    {{ form.errors.category_code }}
-                                </p>
-                            </div>
-
+                        <!-- Tab: Barang -->
+                        <div
+                            v-show="activeTab === 'barang'"
+                            class="grid grid-cols-1 md:grid-cols-2 gap-5"
+                        >
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Satuan</label
-                                >
-                                <SearchSelect
-                                    v-model="form.satuan"
-                                    :options="list_satuan"
-                                    value-key="nama"
-                                    label-key="nama"
-                                    placeholder="Pilih Satuan..."
-                                />
-                                <p
-                                    v-if="form.errors.satuan"
-                                    class="text-xs text-red-500 mt-1"
-                                >
-                                    {{ form.errors.satuan }}
-                                </p>
-                            </div>
-
-                            <div>
-                                <label class="text-sm font-medium text-gray-600"
-                                    >Nama Barang</label
+                                    >Nama Barang
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.nama_barang"
@@ -834,7 +866,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Harga Beli</label
+                                    >Harga Beli
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.harga_beli"
@@ -845,7 +878,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Harga Beli Sebelumnya</label
+                                    >Harga Beli Sebelumnya
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.harga_beli_before"
@@ -856,7 +890,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Harga Jual</label
+                                    >Harga Jual
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.harga_jual"
@@ -867,7 +902,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Harga Jual Sebelumnya</label
+                                    >Harga Jual Sebelumnya
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.harga_jual_before"
@@ -878,7 +914,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Harga Jual Jumbo</label
+                                    >Harga Jual Jumbo
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.harga_jual_jumbo"
@@ -889,7 +926,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Harga Jual Jumbo Sebelumnya</label
+                                    >Harga Jual Jumbo Sebelumnya
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.harga_jual_jumbo_before"
@@ -900,7 +938,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Stok Utama</label
+                                    >Stok Utama
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.stok"
@@ -911,7 +950,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Qty POS</label
+                                    >Qty POS
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.qty_pos"
@@ -922,7 +962,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Min Stok</label
+                                    >Min Stok
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.min_stok"
@@ -933,7 +974,8 @@ const destroyVendor = () => {
 
                             <div>
                                 <label class="text-sm font-medium text-gray-600"
-                                    >Max Stok</label
+                                    >Max Stok
+                                    <span class="text-red-500">*</span></label
                                 >
                                 <Input
                                     v-model="form.max_stok"
@@ -943,24 +985,221 @@ const destroyVendor = () => {
                             </div>
                         </div>
 
+                        <!-- Tab: Barang Detail (sama seperti edit di menu Produk Detail) -->
+                        <div v-show="activeTab === 'detail'" class="space-y-4">
+                            <div
+                                class="border rounded-xl px-3 py-2 bg-slate-50"
+                            >
+                                <div class="text-sm">
+                                    <span class="text-gray-400 text-xs block"
+                                        >Kode Barang (t_barang)</span
+                                    >
+                                    <span class="font-semibold">{{
+                                        editingBarang?.kode_barang
+                                    }}</span>
+                                    <span class="text-gray-500">
+                                        - {{ editingBarang?.nama_barang }}</span
+                                    >
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-xs text-gray-400 font-medium"
+                                    >Produk</label
+                                >
+                                <SearchSelect
+                                    v-model="form.detail.id_produk"
+                                    :options="list_produk"
+                                    value-key="id_produk"
+                                    label-key="nama_produk"
+                                    placeholder="Pilih Produk..."
+                                />
+                                <p class="text-xs text-gray-400 mt-1">
+                                    Kosongkan untuk otomatis dibuat/disinkron
+                                    mengikuti Nama Barang di tab "Barang".
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="text-xs text-gray-400 font-medium"
+                                    >Kategori
+                                    <span class="text-red-500">*</span></label
+                                >
+                                <SearchSelect
+                                    v-model="form.detail.category_id"
+                                    :options="list_kategori"
+                                    value-key="categorycode"
+                                    label-key="categoryname"
+                                    placeholder="Pilih Kategori..."
+                                />
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label
+                                        class="text-xs text-gray-400 font-medium"
+                                        >Type
+                                        <span class="text-red-500"
+                                            >*</span
+                                        ></label
+                                    >
+                                    <SearchSelect
+                                        v-model="form.detail.id_tipe"
+                                        :options="list_tipe"
+                                        value-key="id_tipe"
+                                        label-key="nama"
+                                        placeholder="Pilih Type..."
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        class="text-xs text-gray-400 font-medium"
+                                        >Satuan
+                                        <span class="text-red-500"
+                                            >*</span
+                                        ></label
+                                    >
+                                    <SearchSelect
+                                        v-model="form.detail.id_satuan"
+                                        :options="list_satuan"
+                                        value-key="id_satuan"
+                                        label-key="nama"
+                                        placeholder="Pilih Satuan..."
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        class="text-xs text-gray-400 font-medium"
+                                        >Berat</label
+                                    >
+                                    <SearchSelect
+                                        v-model="form.detail.id_berat"
+                                        :options="list_berat"
+                                        value-key="id_berat"
+                                        label-key="nama"
+                                        placeholder="Pilih Berat..."
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        class="text-xs text-gray-400 font-medium"
+                                        >Ukuran</label
+                                    >
+                                    <SearchSelect
+                                        v-model="form.detail.id_ukuran"
+                                        :options="list_ukuran"
+                                        value-key="id_ukuran"
+                                        label-key="nama"
+                                        placeholder="Pilih Ukuran..."
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        class="text-xs text-gray-400 font-medium"
+                                        >Warna</label
+                                    >
+                                    <SearchSelect
+                                        v-model="form.detail.id_warna"
+                                        :options="list_warna"
+                                        value-key="id_warna"
+                                        label-key="nama"
+                                        placeholder="Pilih Warna..."
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        class="text-xs text-gray-400 font-medium"
+                                        >Karakter</label
+                                    >
+                                    <SearchSelect
+                                        v-model="form.detail.id_karakter"
+                                        :options="list_karakter"
+                                        value-key="id_karakter"
+                                        label-key="nama"
+                                        placeholder="Pilih Karakter..."
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        class="text-xs text-gray-400 font-medium"
+                                        >UOM
+                                        <span class="text-red-500"
+                                            >*</span
+                                        ></label
+                                    >
+                                    <SearchSelect
+                                        v-model="form.detail.id_uom"
+                                        :options="list_uom"
+                                        value-key="id_uom"
+                                        label-key="nama_uom"
+                                        placeholder="Pilih UOM..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="text-xs text-gray-400 font-medium"
+                                    >Foto Produk
+                                    <span class="text-red-500">*</span></label
+                                >
+                                <div class="flex flex-wrap gap-3 mt-2">
+                                    <div
+                                        v-for="(p, index) in detailPreviews"
+                                        :key="index"
+                                        class="relative w-20 h-20 rounded-md overflow-hidden border"
+                                    >
+                                        <img
+                                            :src="p.url"
+                                            class="w-full h-full object-cover"
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="removeDetailPreview(index)"
+                                            class="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5"
+                                        >
+                                            <X class="w-3 h-3" />
+                                        </button>
+                                    </div>
+
+                                    <label
+                                        class="w-20 h-20 rounded-md border-2 border-dashed flex items-center justify-center cursor-pointer text-gray-400 hover:text-blue-500 hover:border-blue-400"
+                                    >
+                                        <ImagePlus class="w-6 h-6" />
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            class="hidden"
+                                            @change="handleDetailFoto"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <div
                             class="flex justify-end gap-3 mt-6 pt-5 border-t sticky bottom-0 bg-white"
                         >
                             <Button
                                 type="button"
                                 variant="outline"
-                                @click="showModal = false"
+                                :disabled="isSubmitting"
+                                @click="closeModal"
                             >
                                 Batal
                             </Button>
 
                             <Button
                                 type="submit"
-                                class="bg-blue-700 text-white"
-                                :disabled="form.processing"
+                                class="bg-blue-700 text-white flex items-center justify-center"
+                                :disabled="isSubmitting"
                             >
+                                <Loader2
+                                    v-if="isSubmitting"
+                                    class="w-4 h-4 mr-2 animate-spin"
+                                />
                                 {{
-                                    form.processing
+                                    isSubmitting
                                         ? "Menyimpan..."
                                         : "Simpan Barang"
                                 }}

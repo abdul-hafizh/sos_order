@@ -20,6 +20,18 @@ class User extends Authenticatable
         'is_admin' => 'boolean',
     ];
 
+    protected $appends = ['is_ho_user'];
+
+    /**
+     * Sumber kebenarannya adalah keanggotaan di view vw_admin_sos (bukan
+     * membandingkan kode_cabang === 'GSOS' langsung), supaya frontend tidak
+     * perlu tahu kode cabang GSOS itu sendiri.
+     */
+    public function getIsHoUserAttribute(): bool
+    {
+        return AdminSos::where('id', $this->id)->exists();
+    }
+
     public function getAuthPassword()
     {
         return $this->pwd;
