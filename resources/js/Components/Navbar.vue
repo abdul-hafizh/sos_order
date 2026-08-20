@@ -10,6 +10,10 @@ import {
     ShoppingCartIcon,
     Squares2X2Icon,
     MapPinIcon,
+    UserIcon,
+    ClipboardDocumentListIcon,
+    Cog6ToothIcon,
+    ShieldCheckIcon,
 } from '@heroicons/vue/24/outline';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
@@ -34,7 +38,7 @@ const props = defineProps({
     },
 });
 
-const emit = defineEmits(['toggleCart', 'openImageSearch', 'openLoginModal']);
+const emit = defineEmits(['toggleCart', 'openImageSearchModal', 'openLoginModal']);
 
 const isHoUser = computed(() => props.user?.kode_cabang === 'GSOS');
 const isAdmin = computed(() => !!props.user?.is_admin);
@@ -45,6 +49,7 @@ const selectedCategory = ref(props.filters?.category_code || '');
 
 const categoryDropdownOpen = ref(false);
 const mobileMenuOpen = ref(false);
+const masterDropdownOpen = ref(false);
 
 const masterDataItems = [
     { name: 'Produk', route: 'master-produk.index' },
@@ -74,21 +79,10 @@ const executeSearch = () => {
     );
 };
 
-const selectTipe = (tipe) => {
-    router.get(
-        route('dashboard'),
-        {
-            search: searchQuery.value,
-            category_code: selectedCategory.value,
-            id_tipe: tipe.id_tipe,
-        },
-        { preserveState: true, replace: true }
-    );
-};
-
 const selectCategoryQuick = (code) => {
     selectedCategory.value = code;
     categoryDropdownOpen.value = false;
+    mobileMenuOpen.value = false;
     router.get(
         route('dashboard'),
         {
@@ -103,117 +97,117 @@ const selectCategoryQuick = (code) => {
 <template>
     <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs font-sans">
         <!-- Top Corporate Info Bar -->
-        <div class="bg-slate-900 text-slate-300 text-xs py-1.5 px-4 border-b border-slate-800">
-            <div class="max-w-[1800px] w-full mx-auto flex items-center justify-between font-medium">
-                <div class="flex items-center space-x-3">
-                    <span class="bg-indigo-600 text-white px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+        <div class="bg-slate-900 text-slate-300 text-[11px] sm:text-xs py-1 px-3 sm:px-4 border-b border-slate-800">
+            <div class="max-w-[1800px] w-full mx-auto flex items-center justify-between font-medium gap-2">
+                <div class="flex items-center space-x-2 truncate">
+                    <span class="bg-indigo-600 text-white px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase tracking-wider shrink-0">
                         SOS ORDER
                     </span>
-                    <span class="hidden sm:inline text-slate-300">
-                        Sistem Pengadaan Barang Cabang — Terhubung Langsung Dokumen SPK Gudang Pusat GSOS
+                    <span class="truncate text-slate-300">
+                        Sistem Pengadaan Barang Cabang Internal GSOS
                     </span>
                 </div>
-                <div v-if="currentCabangName" class="flex items-center space-x-1.5 font-bold text-white shrink-0">
+                <div v-if="currentCabangName" class="flex items-center space-x-1 font-bold text-white shrink-0">
                     <MapPinIcon class="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Cabang: <span class="text-indigo-300 font-bold">{{ currentCabangName }}</span></span>
+                    <span><span class="hidden sm:inline">Cabang: </span><span class="text-indigo-300 font-bold">{{ currentCabangName }}</span></span>
                 </div>
             </div>
         </div>
 
         <!-- Main Navbar Header -->
-        <div class="max-w-[1800px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
-            <div class="flex items-center justify-between gap-4">
+        <div class="max-w-[1800px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-2 md:py-2.5">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-4">
                 
-                <!-- 1. Brand Logo (SOS ORDER) -->
-                <Link :href="route('dashboard')" class="flex items-center space-x-2.5 shrink-0 group">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-md group-hover:scale-105 transition duration-200">
-                        S
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-black text-slate-900 tracking-tight text-2xl leading-none">
-                            SOS <span class="text-indigo-600">ORDER</span>
-                        </span>
-                        <span class="text-[9px] text-indigo-600 font-extrabold tracking-widest uppercase mt-0.5">
-                            Internal E-Procurement
-                        </span>
-                    </div>
-                </Link>
-
-                <!-- 2. Kategori Mega Menu Dropdown -->
-                <div class="relative hidden lg:block shrink-0">
-                    <button
-                        type="button"
-                        @click="categoryDropdownOpen = !categoryDropdownOpen"
-                        class="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 text-xs font-bold transition bg-slate-50 border border-slate-200 cursor-pointer shadow-2xs"
-                    >
-                        <Squares2X2Icon class="w-4 h-4 text-indigo-600" />
-                        <span>Kategori Barang</span>
-                        <ChevronDownIcon class="w-3.5 h-3.5 opacity-70" :class="{ 'rotate-180': categoryDropdownOpen }" />
-                    </button>
-
-                    <!-- Mega Dropdown Panel -->
-                    <div v-if="categoryDropdownOpen" class="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 p-2 z-50 animate-in fade-in slide-in-from-top-2">
-                        <div class="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                            Pilih Kategori Barang
+                <!-- Top Row on Mobile: Brand Logo + Cart Button + Mobile Menu Toggle -->
+                <div class="flex items-center justify-between w-full md:w-auto shrink-0">
+                    <!-- Brand Logo -->
+                    <Link :href="route('dashboard')" class="flex items-center space-x-2 group">
+                        <div class="w-9 h-9 sm:w-10 sm:h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-lg sm:text-xl shadow-md group-hover:scale-105 transition duration-200">
+                            S
                         </div>
+                        <div class="flex flex-col">
+                            <span class="font-black text-slate-900 tracking-tight text-xl sm:text-2xl leading-none">
+                                SOS <span class="text-indigo-600">ORDER</span>
+                            </span>
+                            <span class="text-[8px] sm:text-[9px] text-indigo-600 font-extrabold tracking-widest uppercase mt-0.5">
+                                Internal E-Procurement
+                            </span>
+                        </div>
+                    </Link>
+
+                    <!-- Mobile Top Action Buttons (Cart, Login/Profile, Hamburger) -->
+                    <div class="flex items-center space-x-2 md:hidden">
+                        <!-- Floating/Header Cart Trigger -->
                         <button
                             type="button"
-                            @click="selectCategoryQuick('')"
-                            class="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between hover:bg-indigo-50 hover:text-indigo-600 transition"
-                            :class="!selectedCategory ? 'bg-indigo-50 text-indigo-600' : 'text-slate-700'"
+                            @click="$emit('toggleCart')"
+                            class="relative p-2 text-slate-700 hover:text-indigo-600 bg-slate-100 rounded-xl transition cursor-pointer flex items-center border border-slate-200"
+                            title="Keranjang Pengadaan"
                         >
-                            <span>🔥 Semua Kategori</span>
-                            <span class="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">All</span>
+                            <ShoppingCartIcon class="w-5 h-5 text-indigo-600" />
+                            <span
+                                v-if="cartQty > 0"
+                                class="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border-2 border-white shadow-xs"
+                            >
+                                {{ cartQty }}
+                            </span>
                         </button>
-                        <hr class="my-1 border-slate-100" />
+
+                        <!-- Mobile User Avatar / Login -->
                         <button
-                            v-for="cat in categories"
-                            :key="cat.code"
+                            v-if="!user"
                             type="button"
-                            @click="selectCategoryQuick(cat.code)"
-                            class="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between hover:bg-indigo-50 hover:text-indigo-600 transition"
-                            :class="selectedCategory === cat.code ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600'"
+                            @click="$emit('openLoginModal')"
+                            class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center shadow-2xs transition"
                         >
-                            <span class="truncate">{{ cat.name }}</span>
+                            <span>Login</span>
+                        </button>
+
+                        <button
+                            @click="mobileMenuOpen = !mobileMenuOpen"
+                            class="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200"
+                        >
+                            <Bars3Icon v-if="!mobileMenuOpen" class="w-5 h-5" />
+                            <XMarkIcon v-else class="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
-                <!-- 3. Central Search Bar -->
-                <div class="flex-1 max-w-3xl min-w-0 flex flex-col justify-center">
-                    <form @submit.prevent="executeSearch" class="relative flex items-center bg-white border border-slate-300 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-100 rounded-xl p-0.5 shadow-2xs transition-all">
-                        <div class="relative w-full flex items-center">
-                            <MagnifyingGlassIcon class="w-5 h-5 absolute left-3 text-slate-400 pointer-events-none" />
+                <!-- Central Search Bar with Prominent Photo AI Search Button -->
+                <div class="flex-1 max-w-3xl min-w-0 w-full">
+                    <form @submit.prevent="executeSearch" class="relative flex items-center bg-white border border-slate-300 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-100 rounded-xl p-1 shadow-2xs transition-all gap-1">
+                        <div class="relative flex-1 min-w-0 flex items-center">
+                            <MagnifyingGlassIcon class="w-4 h-4 sm:w-5 sm:h-5 absolute left-2.5 sm:left-3 text-slate-400 pointer-events-none" />
                             <input
                                 v-model="searchQuery"
                                 type="text"
-                                placeholder="Cari varian barang, SKU, perabotan, ATK..."
-                                class="w-full pl-10 pr-4 h-9 text-sm text-slate-900 placeholder-slate-400 border-0 focus:ring-0 focus:outline-none bg-transparent font-medium"
+                                placeholder="Cari varian, SKU, ATK..."
+                                class="w-full pl-8 sm:pl-10 pr-2 h-9 text-xs sm:text-sm text-slate-900 placeholder-slate-400 border-0 focus:ring-0 focus:outline-none bg-transparent font-medium"
                             />
                         </div>
+
+                        <!-- Prominent Standalone Photo Search UI Button -->
+                        <button
+                            type="button"
+                            @click="$emit('openImageSearchModal')"
+                            class="h-8 sm:h-9 px-2 sm:px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg transition-all cursor-pointer flex items-center space-x-1 sm:space-x-1.5 text-xs font-extrabold shrink-0 shadow-2xs"
+                            title="Pencarian Foto AI (Cari Berdasarkan Gambar)"
+                        >
+                            <PhotoIcon class="w-4 h-4 text-indigo-600" />
+                            <span class="text-[11px] sm:text-xs font-extrabold whitespace-nowrap">Cari Gambar</span>
+                        </button>
+
                         <button
                             type="submit"
-                            class="ml-1 h-9 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs flex items-center shrink-0 transition shadow-2xs"
+                            class="h-8 sm:h-9 px-3 sm:px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs flex items-center shrink-0 transition shadow-2xs cursor-pointer"
                         >
                             <span>Cari</span>
                         </button>
                     </form>
-
-                    <!-- Tipe Barang Strip -->
-                    <div class="hidden sm:flex items-center space-x-3 text-[11px] text-slate-500 mt-1 pl-1 overflow-x-auto no-scrollbar">
-                        <span
-                            v-for="tipe in tipes"
-                            :key="tipe.id_tipe"
-                            @click="selectTipe(tipe)"
-                            class="hover:text-indigo-600 cursor-pointer whitespace-nowrap font-medium"
-                        >
-                            {{ tipe.nama }}
-                        </span>
-                    </div>
                 </div>
 
-                <!-- 4. Right User Controls -->
-                <div class="flex items-center space-x-3 shrink-0">
+                <!-- Right User Controls (Desktop Only) -->
+                <div class="hidden md:flex items-center space-x-3 shrink-0">
                     <!-- Cart Button with Counter Badge -->
                     <button
                         type="button"
@@ -258,29 +252,20 @@ const selectCategoryQuick = (code) => {
                             <span>Masuk / Login</span>
                         </button>
                     </div>
-
-                    <!-- Mobile Menu Button -->
-                    <button
-                        @click="mobileMenuOpen = !mobileMenuOpen"
-                        class="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                    >
-                        <Bars3Icon v-if="!mobileMenuOpen" class="w-6 h-6" />
-                        <XMarkIcon v-else class="w-6 h-6" />
-                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Quick Category Sub-Navbar Strip -->
-        <div class="bg-slate-50 border-t border-slate-200/80 py-1.5 px-4 sm:px-6 lg:px-8">
+        <!-- Quick Category & Links Sub-Navbar Strip -->
+        <div class="bg-slate-50 border-t border-slate-200/80 py-1.5 px-3 sm:px-6 lg:px-8">
             <div class="max-w-[1800px] w-full mx-auto flex items-center justify-between gap-4">
                 
                 <!-- Category Pills Scroll Strip -->
-                <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-0.5 min-w-0">
+                <div class="flex items-center space-x-1.5 sm:space-x-2 overflow-x-auto no-scrollbar py-0.5 min-w-0">
                     <button
                         type="button"
                         @click="selectCategoryQuick('')"
-                        class="px-3.5 py-1 rounded-full text-xs font-bold whitespace-nowrap transition shadow-2xs"
+                        class="px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold whitespace-nowrap transition shadow-2xs"
                         :class="!selectedCategory ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'"
                     >
                         🔥 Semua Kategori
@@ -291,14 +276,14 @@ const selectCategoryQuick = (code) => {
                         :key="cat.code"
                         type="button"
                         @click="selectCategoryQuick(cat.code)"
-                        class="px-3.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition"
+                        class="px-3 py-1 rounded-full text-[11px] sm:text-xs font-semibold whitespace-nowrap transition"
                         :class="selectedCategory === cat.code ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'"
                     >
                         <span>{{ cat.name }}</span>
                     </button>
                 </div>
 
-                <!-- Admin Navigation Links -->
+                <!-- Admin Navigation Links (Desktop) -->
                 <div class="hidden lg:flex items-center space-x-4 text-xs shrink-0 font-bold">
                     <Link
                         :href="route('dashboard')"
@@ -355,6 +340,79 @@ const selectCategoryQuick = (code) => {
                         Admin GSOS
                     </Link>
                 </div>
+            </div>
+        </div>
+
+        <!-- Mobile Drawer Menu (When Hamburger is clicked) -->
+        <div v-if="mobileMenuOpen" class="lg:hidden border-t border-slate-200 bg-white p-4 space-y-4 shadow-xl">
+            <div v-if="user" class="p-3 bg-indigo-50 rounded-2xl flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black text-sm">
+                        {{ (user?.nama_user || 'U').charAt(0).toUpperCase() }}
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-900 text-xs sm:text-sm">{{ user?.nama_user }}</h4>
+                        <span class="text-[10px] text-indigo-600 font-bold">Cabang: {{ currentCabangName }}</span>
+                    </div>
+                </div>
+
+                <Link :href="route('logout')" method="post" as="button" class="text-xs font-bold text-red-600 hover:underline">
+                    Logout
+                </Link>
+            </div>
+
+            <div v-else class="p-3 bg-slate-50 rounded-2xl flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-700">Status: Pengunjung Guest</span>
+                <button
+                    type="button"
+                    @click="$emit('openLoginModal'); mobileMenuOpen = false;"
+                    class="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+                >
+                    Masuk / Login
+                </button>
+            </div>
+
+            <div class="space-y-1 text-xs font-bold text-slate-700">
+                <Link
+                    :href="route('dashboard')"
+                    @click="mobileMenuOpen = false"
+                    class="flex items-center space-x-2 p-2.5 rounded-xl hover:bg-slate-100"
+                    :class="isActive('dashboard') ? 'bg-indigo-50 text-indigo-600 font-bold' : ''"
+                >
+                    <Squares2X2Icon class="w-4 h-4 text-indigo-600" />
+                    <span>Katalog Pengadaan Barang</span>
+                </Link>
+
+                <Link
+                    v-if="isHoUser"
+                    :href="route('spk.index')"
+                    @click="mobileMenuOpen = false"
+                    class="flex items-center space-x-2 p-2.5 rounded-xl hover:bg-slate-100"
+                    :class="isActive('spk.index') ? 'bg-indigo-50 text-indigo-600 font-bold' : ''"
+                >
+                    <ClipboardDocumentListIcon class="w-4 h-4 text-indigo-600" />
+                    <span>SPK Saya</span>
+                </Link>
+
+                <Link
+                    v-if="isAdmin"
+                    :href="route('barang.index')"
+                    @click="mobileMenuOpen = false"
+                    class="flex items-center space-x-2 p-2.5 rounded-xl hover:bg-slate-100"
+                >
+                    <Cog6ToothIcon class="w-4 h-4 text-indigo-600" />
+                    <span>Kelola Barang Admin</span>
+                </Link>
+
+                <Link
+                    v-if="isHoUser"
+                    :href="route('admin-ho.index')"
+                    @click="mobileMenuOpen = false"
+                    class="flex items-center space-x-2 p-2.5 rounded-xl hover:bg-slate-100"
+                >
+                    <ShieldCheckIcon class="w-4 h-4 text-indigo-600" />
+                    <span>Admin GSOS HO</span>
+                </Link>
             </div>
         </div>
     </header>

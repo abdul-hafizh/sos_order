@@ -294,6 +294,35 @@ class BarangController extends Controller
             ->orderBy('categoryname')
             ->get();
 
+        // Ambil list service (MasterTipe) beserta sub-kategori masing-masing
+        $services = \App\Models\MasterTipe::query()
+            ->select(['id_tipe', 'nama'])
+            ->orderBy('nama')
+            ->get()
+            ->map(function ($tipe) {
+                $categoryCodes = \App\Models\MasterProdukDetail::where('id_tipe', $tipe->id_tipe)
+                    ->whereNotNull('category_id')
+                    ->distinct()
+                    ->pluck('category_id');
+
+                $subCategories = \App\Models\Category::whereIn('categorycode', $categoryCodes)
+                    ->select(['categorycode', 'categoryname'])
+                    ->orderBy('categoryname')
+                    ->get()
+                    ->map(fn($c) => [
+                        'code' => $c->categorycode,
+                        'name' => $c->categoryname,
+                    ])
+                    ->values();
+
+                return [
+                    'id_tipe' => $tipe->id_tipe,
+                    'nama' => $tipe->nama,
+                    'categories' => $subCategories,
+                ];
+            })
+            ->values();
+
         $keranjang = auth()->check() ? Keranjang::with([
             'details.gambar',
             'details.barang.produk.produk',
@@ -316,8 +345,9 @@ class BarangController extends Controller
             'variantList' => $variantList,
             'tipeList' => $tipeList,
 
-            // List kategori
+            // List kategori & services
             'categories' => $categories,
+            'services' => $services,
 
             // Search + kategori + tipe yang sedang aktif
             'filters' => $request->only([
