@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
 import LoginModal from "@/Components/LoginModal.vue";
+import ImageSearchModal from "@/Components/ImageSearchModal.vue";
 import { Head, Link, router, useForm, usePage } from "@inertiajs/vue3";
 import { ref, watch, computed, onMounted } from "vue";
 import { Input } from "@/Components/ui/input";
@@ -32,6 +33,7 @@ import {
     MapPin,
     BadgeCheck,
     Info,
+    ChevronDown,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -44,14 +46,19 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    services: {
+        type: Array,
+        default: () => [],
+    },
     filters: Object,
     image_keyword: String,
     image_path: String,
     keranjang: Object,
 });
 
-// Login Modal State
+// Modal States
 const showLoginModal = ref(false);
+const showImageSearchModal = ref(false);
 
 // Catalog Section Anchor Reference for Point 1
 const catalogSectionRef = ref(null);
@@ -214,8 +221,12 @@ const bulkAddForm = useForm({
 
 // Guest Helper function to add item to guestCartItems
 const addGuestItem = (detail, qtyToAdd) => {
+    const barangObj = detail.barang || detail;
+    const barangId = barangObj?.id_barang || detail.id_barang;
+    if (!barangId) return;
+
     const existingIndex = guestCartItems.value.findIndex(
-        (i) => i.id_barang === detail.barang.id_barang
+        (i) => Number(i.id_barang) === Number(barangId)
     );
 
     if (existingIndex > -1) {
@@ -223,12 +234,14 @@ const addGuestItem = (detail, qtyToAdd) => {
     } else {
         guestCartItems.value.push({
             id_keranjang_detail: `guest-${Date.now()}-${Math.random()}`,
-            id_barang: detail.barang.id_barang,
+            id_barang: Number(barangId),
             nama_barang: variantLabel(detail),
             qty: qtyToAdd,
             tipe_item: 'barang_terdaftar',
-            barang: detail.barang,
-            gambar_url: detail.gambars?.[0]?.path_file ? `/storage/${detail.gambars[0].path_file}` : null,
+            barang: barangObj,
+            gambar_url: detail.gambars?.[0]?.path_file
+                ? `/storage/${detail.gambars[0].path_file}`
+                : detail.gambar_url || null,
             gambar: [],
         });
     }
@@ -238,7 +251,7 @@ const addGuestItem = (detail, qtyToAdd) => {
 
 const addSelectedVariantsToCart = () => {
     const selected = (props.variantList?.data || []).filter(
-        (d) => d.barang && (variantQty.value[d.id_produk_detail] || 0) > 0
+        (d) => (d.barang || d.id_barang) && (variantQty.value[d.id_produk_detail] || 0) > 0
     );
 
     if (!selected.length) return;
@@ -253,7 +266,7 @@ const addSelectedVariantsToCart = () => {
     }
 
     const items = selected.map((d) => ({
-        id_barang: d.barang.id_barang,
+        id_barang: Number(d.barang?.id_barang || d.id_barang),
         qty: variantQty.value[d.id_produk_detail],
     }));
 
@@ -268,7 +281,9 @@ const addSelectedVariantsToCart = () => {
 };
 
 const addSingleVariantToCart = (detail) => {
-    if (!detail.barang) return;
+    const barangObj = detail.barang || detail;
+    const barangId = barangObj?.id_barang || detail.id_barang;
+    if (!barangId) return;
 
     const qty = variantQty.value[detail.id_produk_detail] > 0
         ? variantQty.value[detail.id_produk_detail]
@@ -282,7 +297,7 @@ const addSingleVariantToCart = (detail) => {
     }
 
     bulkAddForm.items = [{
-        id_barang: detail.barang.id_barang,
+        id_barang: Number(barangId),
         qty: qty,
     }];
 
@@ -314,10 +329,10 @@ const groupedCartItems = computed(() => {
     const groups = new Map();
 
     for (const item of cartItems.value) {
-        const parent = item.barang?.produk?.produk;
-        const key = parent ? `produk-${parent.id_produk}` : `item-${item.id_keranjang_detail}`;
+        const parent = item.barang?.produk?.produk || item.barang?.produk;
+        const key = parent ? `produk-${parent.id_produk || item.id_barang}` : `item-${item.id_keranjang_detail}`;
         const label = parent
-            ? parent.nama_produk
+            ? (parent.nama_produk || parent.nama)
             : item.tipe_item === "barang_baru"
               ? "Permintaan Barang Baru"
               : item.nama_barang;
@@ -342,21 +357,36 @@ const barangBaruForm = useForm({
 });
 
 const addBarangBaruToCart = () => {
-    if (!currentUser.value) {
-        showLoginModal.value = true;
-        return;
-    }
-
     const urlParams = new URLSearchParams(window.location.search);
 
-    barangBaruForm.nama_barang =
+    const namaBarang =
         props.image_keyword ||
         urlParams.get("image_keyword") ||
         params.value.search ||
         "Barang baru";
 
-    barangBaruForm.image_path =
+    const imagePath =
         props.image_path || urlParams.get("image_path") || "";
+
+    if (!currentUser.value) {
+        // Guest Flow: Add Permintaan Barang Baru to guest cart
+        guestCartItems.value.push({
+            id_keranjang_detail: `guest-baru-${Date.now()}-${Math.random()}`,
+            id_barang: null,
+            nama_barang: namaBarang,
+            qty: 1,
+            tipe_item: 'barang_baru',
+            gambar_url: imagePath ? `/storage/${imagePath}` : null,
+            gambar: imagePath ? [{ gambar: imagePath }] : [],
+            image_path: imagePath,
+        });
+        saveGuestCart();
+        showCart.value = true;
+        return;
+    }
+
+    barangBaruForm.nama_barang = namaBarang;
+    barangBaruForm.image_path = imagePath;
 
     barangBaruForm.post(route("keranjang.storeBarangBaru"), {
         forceFormData: true,
@@ -392,6 +422,7 @@ const resetSearch = () => {
     imageForm.reset();
     params.value.search = "";
     params.value.category_code = "";
+    params.value.id_tipe = "";
 
     router.get(
         route("dashboard"),
@@ -455,9 +486,22 @@ const searchByImage = () => {
 const params = ref({
     search: props.filters?.search || "",
     category_code: props.filters?.category_code || "",
+    id_tipe: props.filters?.id_tipe || "",
 });
 
 const selectedCategory = computed(() => params.value.category_code);
+
+const expandedServices = ref({});
+
+const toggleServiceExpand = (idTipe) => {
+    expandedServices.value[idTipe] = !expandedServices.value[idTipe];
+};
+
+const selectServiceAndCategory = (idTipe, categoryCode) => {
+    params.value.id_tipe = idTipe;
+    params.value.category_code = categoryCode;
+    searchData();
+};
 
 // Point 1: Scroll down to catalog results section when filter/search is applied
 const searchData = () => {
@@ -466,6 +510,7 @@ const searchData = () => {
         {
             search: params.value.search,
             category_code: params.value.category_code,
+            id_tipe: params.value.id_tipe,
         },
         { preserveState: true, replace: true },
     );
@@ -476,17 +521,7 @@ const searchData = () => {
 
 const selectCategory = (categoryCode) => {
     params.value.category_code = categoryCode;
-    router.get(
-        route("dashboard"),
-        {
-            search: params.value.search,
-            category_code: categoryCode,
-        },
-        { preserveState: true, replace: true },
-    );
-    if (catalogSectionRef.value) {
-        catalogSectionRef.value.scrollIntoView({ behavior: 'smooth' });
-    }
+    searchData();
 };
 
 // Masuk ke daftar varian 1 tipe (dari kartu tipe di mode browse)
@@ -515,53 +550,81 @@ const backToTipeList = () => {
     );
 };
 
-// Handle login success from LoginModal
-const handleLoginSuccess = () => {
-    showLoginModal.value = false;
+const isSyncingCart = ref(false);
+const showMobileFilter = ref(false);
 
-    // Load and sync guest cart items to backend database
+const syncGuestCartToServer = () => {
+    if (!currentUser.value || isSyncingCart.value) return;
+
     loadGuestCart();
-    if (guestCartItems.value.length > 0) {
-        const itemsToSync = guestCartItems.value.map(i => ({
-            id_barang: i.id_barang,
-            qty: i.qty,
+    if (!guestCartItems.value || guestCartItems.value.length === 0) return;
+
+    const registeredItems = guestCartItems.value
+        .filter((i) => i.id_barang)
+        .map((i) => ({
+            id_barang: Number(i.id_barang),
+            qty: Number(i.qty || 1),
         }));
 
-        bulkAddForm.items = itemsToSync;
-        bulkAddForm.post(route("keranjang.storeBarangBanyak"), {
+    if (registeredItems.length === 0) return;
+
+    isSyncingCart.value = true;
+
+    router.post(
+        route("keranjang.storeBarangBanyak"),
+        { items: registeredItems },
+        {
             preserveScroll: true,
             onSuccess: () => {
                 guestCartItems.value = [];
                 localStorage.removeItem("guest_cart");
+                isSyncingCart.value = false;
                 showCart.value = true;
             },
-        });
-    } else {
-        showCart.value = true;
+            onError: (err) => {
+                console.error("Cart sync error:", err);
+                isSyncingCart.value = false;
+            },
+        }
+    );
+};
+
+// Handle login success from LoginModal
+const handleLoginSuccess = () => {
+    showLoginModal.value = false;
+    syncGuestCartToServer();
+};
+
+watch(
+    currentUser,
+    (user) => {
+        if (user) {
+            syncGuestCartToServer();
+        }
+    },
+    { immediate: true }
+);
+
+// AI Results Banner Reference for Auto-Scroll
+const aiResultsBannerRef = ref(null);
+
+const scrollToAiResults = () => {
+    if (aiResultsBannerRef.value) {
+        aiResultsBannerRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (catalogSectionRef.value) {
+        catalogSectionRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 };
 
 // Sync guest cart to server after guest logs in
 onMounted(() => {
-    loadGuestCart();
+    syncGuestCartToServer();
 
-    if (currentUser.value && guestCartItems.value.length > 0) {
-        const itemsToSync = guestCartItems.value.map(i => ({
-            id_barang: i.id_barang,
-            qty: i.qty,
-        }));
-
-        bulkAddForm.items = itemsToSync;
-        bulkAddForm.post(route("keranjang.storeBarangBanyak"), {
-            preserveScroll: true,
-            onSuccess: () => {
-                guestCartItems.value = [];
-                localStorage.removeItem("guest_cart");
-            },
-        });
-    }
-
-    if ((props.filters?.search || props.filters?.category_code) && catalogSectionRef.value) {
+    if (props.image_path || props.image_keyword) {
+        setTimeout(() => {
+            scrollToAiResults();
+        }, 300);
+    } else if ((props.filters?.search || props.filters?.category_code) && catalogSectionRef.value) {
         setTimeout(() => {
             catalogSectionRef.value?.scrollIntoView({ behavior: 'smooth' });
         }, 200);
@@ -634,6 +697,7 @@ const quickCategoryIcons = computed(() => [
 
     <AuthenticatedLayout
         @open-login-modal="showLoginModal = true"
+        @open-image-search-modal="showImageSearchModal = true"
         @toggle-cart="showCart = !showCart"
     >
         <!-- Pop-Up Login Modal Component -->
@@ -641,6 +705,12 @@ const quickCategoryIcons = computed(() => [
             :show="showLoginModal"
             @close="showLoginModal = false"
             @success="handleLoginSuccess"
+        />
+
+        <!-- Pop-Up Image Search Modal Component -->
+        <ImageSearchModal
+            :show="showImageSearchModal"
+            @close="showImageSearchModal = false"
         />
 
         <!-- Floating Cart Trigger Button -->
@@ -731,23 +801,37 @@ const quickCategoryIcons = computed(() => [
                 </div>
             </div>
 
-            <!-- Keyword Banner if Image Search was performed -->
-            <div v-if="image_keyword" class="bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                <div class="flex items-center space-x-3">
-                    <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
-                        <Sparkles class="w-5 h-5" />
+            <!-- AI Photo Search Result Banner with Uploaded Sample Image & Auto-Scroll -->
+            <div
+                v-if="image_path || image_keyword"
+                ref="aiResultsBannerRef"
+                class="scroll-mt-28 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-2 border-indigo-500/40 text-white rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl"
+            >
+                <div class="flex items-center space-x-4">
+                    <!-- Uploaded Sample Image Thumbnail Display -->
+                    <div v-if="image_path" class="w-16 h-16 md:w-20 md:h-20 rounded-2xl overflow-hidden border-2 border-indigo-400 bg-slate-800 shrink-0 shadow-md">
+                        <img :src="`/storage/${image_path}`" class="w-full h-full object-cover" alt="Foto Sampel AI" />
                     </div>
-                    <div>
-                        <span class="text-xs text-indigo-600 font-bold">Hasil AI Photo Search:</span>
-                        <h4 class="font-bold text-slate-900 text-sm">"{{ image_keyword }}"</h4>
+                    <div v-else class="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-md">
+                        <Sparkles class="w-6 h-6 text-yellow-300" />
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="inline-flex items-center space-x-1.5 bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 px-3 py-0.5 rounded-full text-xs font-bold">
+                            <Sparkles class="w-3.5 h-3.5 text-yellow-300" />
+                            <span>Hasil AI Photo Search</span>
+                        </div>
+                        <h4 v-if="image_keyword" class="font-extrabold text-white text-base md:text-lg">"{{ image_keyword }}"</h4>
+                        <p class="text-xs text-slate-300 font-medium">Varian produk yang paling mirip berdasarkan foto sampel yang Anda unggah</p>
                     </div>
                 </div>
-                <div class="flex items-center space-x-2">
-                    <Button type="button" size="sm" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl" @click="addBarangBaruToCart">
+
+                <div class="flex items-center space-x-2 shrink-0">
+                    <Button type="button" size="sm" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl h-10 px-4 shadow-md" @click="addBarangBaruToCart">
                         <Plus class="w-4 h-4 mr-1" />
                         Ajukan Sebagai Barang Baru
                     </Button>
-                    <Button type="button" variant="outline" size="sm" class="text-xs rounded-xl" @click="resetSearch">
+                    <Button type="button" variant="outline" size="sm" class="text-xs rounded-xl h-10 px-4 border-slate-700 bg-white/10 hover:bg-white/20 text-white font-bold" @click="resetSearch">
                         Reset
                     </Button>
                 </div>
@@ -757,82 +841,107 @@ const quickCategoryIcons = computed(() => [
             <div ref="catalogSectionRef" class="scroll-mt-28 flex flex-col lg:flex-row gap-6 items-start">
                 
                 <!-- Left Sidebar Facet Filter Panel (Point 5: Filter Warna Dihilangkan) -->
-                <aside class="w-full lg:w-72 bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs shrink-0 space-y-6 lg:sticky lg:top-24">
+                <aside class="w-full lg:w-72 bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-xs shrink-0 space-y-4 lg:space-y-6 lg:sticky lg:top-24">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                         <div class="flex items-center space-x-2 text-slate-900 font-black text-sm">
                             <SlidersHorizontal class="w-4 h-4 text-indigo-600" />
                             <span>Filter Katalog</span>
                         </div>
-                        <button v-if="params.search || params.category_code || previewImage" type="button" @click="resetSearch" class="text-xs font-bold text-red-600 hover:underline">
-                            Reset Semua
-                        </button>
-                    </div>
-
-                    <!-- Search Filter Input -->
-                    <div class="space-y-2">
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Cari Varian / SKU</label>
-                        <div class="relative">
-                            <Search class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                            <Input
-                                v-model="params.search"
-                                @keyup.enter="searchData"
-                                placeholder="Nama, varian, atau SKU..."
-                                class="pl-10 pr-8 h-10 text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-100 bg-slate-50 w-full font-medium"
-                            />
-                            <button v-if="params.search" type="button" @click="resetSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
-                                ✕
+                        <div class="flex items-center space-x-2">
+                            <button v-if="params.search || params.category_code || previewImage" type="button" @click="resetSearch" class="text-xs font-bold text-red-600 hover:underline">
+                                Reset
+                            </button>
+                            <button type="button" @click="showMobileFilter = !showMobileFilter" class="lg:hidden text-xs font-bold text-indigo-600 border border-indigo-200 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                                {{ showMobileFilter ? 'Tutup Filter' : 'Buka Filter' }}
                             </button>
                         </div>
                     </div>
 
-                    <!-- Search by Image Box -->
-                    <form @submit.prevent="searchByImage" class="space-y-2 pt-2 border-t border-slate-100">
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Pencarian Foto AI</label>
-                        
-                        <label v-if="!previewImage" class="border-2 border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/50 transition rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer bg-slate-50 aspect-video">
-                            <UploadCloud class="w-6 h-6 text-indigo-600 mb-1" />
-                            <span class="text-xs font-bold text-slate-700">Upload Foto Sampel</span>
-                            <input name="image" type="file" accept="image/*" class="hidden" @change="handleImage" />
-                        </label>
-
-                        <div v-else class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center aspect-video p-2">
-                            <img :src="previewImage" class="max-w-full max-h-full object-contain" />
-                            <button type="button" class="absolute top-2 right-2 bg-black/70 hover:bg-black text-white p-1 rounded-full transition" @click="clearImage">
-                                <X class="w-4 h-4" />
-                            </button>
+                    <div :class="showMobileFilter ? 'block' : 'hidden lg:block'" class="space-y-6">
+                        <!-- Search Filter Input -->
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Cari Varian / SKU</label>
+                            <div class="relative">
+                                <Search class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <Input
+                                    v-model="params.search"
+                                    @keyup.enter="searchData"
+                                    placeholder="Nama, varian, atau SKU..."
+                                    class="pl-10 pr-8 h-10 text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-100 bg-slate-50 w-full font-medium"
+                                />
+                                <button v-if="params.search" type="button" @click="resetSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+                                    ✕
+                                </button>
+                            </div>
                         </div>
 
-                        <Button type="submit" size="sm" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs h-9 font-bold flex items-center justify-center" :disabled="!imageForm.image || imageForm.processing">
-                            <Loader2 v-if="imageForm.processing" class="w-4 h-4 mr-2 animate-spin" />
-                            {{ imageForm.processing ? "Mencari..." : "Cari Gambar" }}
-                        </Button>
-                    </form>
+                        <!-- Service List & Sub-Categories Tree -->
+                        <div class="space-y-2 pt-2 border-t border-slate-100">
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tipe Produk & Sub-Kategori</label>
+                            
+                            <div class="space-y-1.5 max-h-96 overflow-y-auto no-scrollbar pr-1">
+                                <!-- All Services Option -->
+                                <button
+                                    type="button"
+                                    @click="selectServiceAndCategory('', '')"
+                                    class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition"
+                                    :class="!params.id_tipe && !params.category_code ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'text-slate-700 hover:bg-slate-100 bg-slate-50'"
+                                >
+                                    <span>🔥 Semua Tipe Produk</span>
+                                </button>
 
-                    <!-- Category List -->
-                    <div class="space-y-2 pt-2 border-t border-slate-100">
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Pilih Kategori</label>
-                        
-                        <div class="space-y-1">
-                            <button
-                                type="button"
-                                @click="selectCategory('')"
-                                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition"
-                                :class="!selectedCategory ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'text-slate-600 hover:bg-slate-100'"
-                            >
-                                <span>Semua Kategori</span>
-                                <span class="text-[10px] opacity-80">({{ categories.length }})</span>
-                            </button>
+                                <!-- Service Tree Items -->
+                                <div
+                                    v-for="service in services"
+                                    :key="service.id_tipe"
+                                    class="space-y-1 border border-slate-200/70 rounded-2xl p-1.5 bg-slate-50/50"
+                                >
+                                    <!-- Service Header / Parent Item -->
+                                    <div class="flex items-center justify-between">
+                                        <button
+                                            type="button"
+                                            @click="selectServiceAndCategory(service.id_tipe, '')"
+                                            class="flex-1 text-left px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 truncate"
+                                            :class="params.id_tipe === service.id_tipe && !params.category_code ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-800 hover:text-indigo-600'"
+                                        >
+                                            <Package class="w-3.5 h-3.5 shrink-0" :class="params.id_tipe === service.id_tipe && !params.category_code ? 'text-white' : 'text-indigo-600'" />
+                                            <span class="truncate">{{ service.nama }}</span>
+                                        </button>
 
-                            <button
-                                v-for="cat in categories"
-                                :key="cat.code"
-                                type="button"
-                                @click="selectCategory(cat.code)"
-                                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition"
-                                :class="selectedCategory === cat.code ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'text-slate-600 hover:bg-slate-100'"
-                            >
-                                <span class="truncate">{{ cat.name }}</span>
-                            </button>
+                                        <!-- Toggle expand button for sub-categories -->
+                                        <button
+                                            v-if="service.categories?.length"
+                                            type="button"
+                                            @click="toggleServiceExpand(service.id_tipe)"
+                                            class="p-1 text-slate-400 hover:text-slate-700 rounded-lg shrink-0 cursor-pointer"
+                                            title="Tampilkan Sub-Kategori"
+                                        >
+                                            <ChevronDown
+                                                class="w-3.5 h-3.5 transition-transform duration-200"
+                                                :class="expandedServices[service.id_tipe] || params.id_tipe === service.id_tipe ? 'rotate-180 text-indigo-600' : ''"
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <!-- Sub-Categories List (Indented Child Items) -->
+                                    <div
+                                        v-if="service.categories?.length && (expandedServices[service.id_tipe] || params.id_tipe === service.id_tipe)"
+                                        class="pl-3.5 pr-1 py-1 space-y-1 border-l-2 border-indigo-200 ml-3"
+                                    >
+                                        <button
+                                            v-for="subCat in service.categories"
+                                            :key="subCat.code"
+                                            type="button"
+                                            @click="selectServiceAndCategory(service.id_tipe, subCat.code)"
+                                            class="w-full text-left px-2 py-1 rounded-lg text-[11px] font-medium transition flex items-center space-x-1.5 cursor-pointer"
+                                            :class="params.id_tipe === service.id_tipe && params.category_code === subCat.code ? 'bg-indigo-100 text-indigo-800 font-extrabold' : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-100'"
+                                        >
+                                            <span class="text-indigo-400 font-normal">↳</span>
+                                            <span class="truncate">{{ subCat.name }}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </aside>
@@ -841,7 +950,7 @@ const quickCategoryIcons = computed(() => [
                 <main class="flex-1 w-full space-y-5">
 
                     <!-- BROWSE MODE: Kelompok per Tipe Produk (default, sebelum search/pilih tipe) -->
-                    <template v-if="tipeList">
+                    <div v-if="tipeList" class="space-y-5">
                         <div class="bg-white rounded-2xl border border-slate-200/80 p-4 flex items-center gap-3 shadow-xs">
                             <h3 class="font-extrabold text-slate-900 text-base">
                                 {{ selectedCategory ? `Tipe Produk ${getCategoryName(selectedCategory)}` : 'Tipe Produk' }}
@@ -899,10 +1008,10 @@ const quickCategoryIcons = computed(() => [
                             <h3 class="font-bold text-slate-900 text-base">Belum Ada Tipe Produk</h3>
                             <p class="text-xs text-slate-500 max-w-md mx-auto">Tidak ada tipe produk yang sesuai dengan kategori ini.</p>
                         </div>
-                    </template>
+                    </div>
 
                     <!-- FLAT MODE: Hasil pencarian teks/gambar, atau varian di dalam 1 tipe -->
-                    <template v-else>
+                    <div v-else class="space-y-5">
 
                     <!-- Breadcrumb kembali ke daftar tipe (hanya tampil saat sedang di dalam 1 tipe) -->
                     <button
@@ -994,13 +1103,8 @@ const quickCategoryIcons = computed(() => [
                                         {{ variantLabel(detail) }}
                                     </h4>
 
-                                    <!-- Rating & Stok -->
+                                    <!-- Stok -->
                                     <div class="flex items-center space-x-1.5 text-[11px] text-slate-500 font-medium">
-                                        <span class="flex items-center text-amber-500 font-bold">
-                                            <Star class="w-3.5 h-3.5 fill-amber-400 mr-0.5" />
-                                            4.9
-                                        </span>
-                                        <span>•</span>
                                         <span>Stok: <b class="text-slate-800">{{ detail.barang?.stok ?? 0 }}</b></span>
                                     </div>
 
@@ -1146,8 +1250,7 @@ const quickCategoryIcons = computed(() => [
                             />
                         </Link>
                     </div>
-
-                    </template>
+                    </div>
                 </main>
             </div>
         </div>
