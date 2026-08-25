@@ -24,7 +24,7 @@ watch(() => page.props.flash, (flash) => {
 </script>
 
 <template>
-    <div class="min-h-screen flex flex-col bg-slate-100">
+    <div class="min-h-screen flex flex-col bg-slate-100 overflow-x-hidden w-full">
         <Toast ref="toastRef" />
 
         <!-- Top Navbar -->
