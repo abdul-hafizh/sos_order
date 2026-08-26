@@ -94,7 +94,7 @@ const selectCategoryQuick = (code) => {
 </script>
 
 <template>
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs font-sans w-full max-w-full overflow-hidden">
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs font-sans w-full max-w-full">
         <!-- 1. Top Corporate Info Bar -->
         <div class="bg-slate-900 text-slate-300 text-[10px] sm:text-xs py-1 px-3 sm:px-6 border-b border-slate-800">
             <div class="max-w-[1800px] w-full mx-auto flex items-center justify-between font-medium gap-2 min-w-0">
