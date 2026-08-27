@@ -13,7 +13,6 @@ class MasterKategoriController extends Controller
     {
         $categories = Category::query()
             ->when($request->search, fn($q, $s) => $q->where('categoryname', 'like', "%{$s}%"))
-            ->orderBy('categoryname')
             ->paginate($request->per_page ?? 10)
             ->withQueryString();
 
@@ -41,6 +40,6 @@ class MasterKategoriController extends Controller
 
         $category->update($validated);
 
-        return back()->with('success', 'Gambar kategori berhasil diupdate');
+        return back()->with('success', 'Gambar kategori berhasil diperbarui');
     }
 }

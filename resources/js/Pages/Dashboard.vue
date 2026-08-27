@@ -20,6 +20,7 @@ import {
     Sparkles,
     Loader2,
     SlidersHorizontal,
+    GripVertical,
     Tag,
     Grid,
     List,
@@ -689,19 +690,117 @@ const getCategoryName = (code) => {
     return found ? found.name : 'Kategori';
 };
 
-// Point 2: Kategori Pilihan Pengadaan - diambil langsung dari data Category
-// (menu master-kategori), dicocokkan ke produk lewat MasterProdukDetail.category_id.
+const getStoredCategoryOrder = () => {
+    try {
+        const saved = localStorage.getItem('category_custom_order');
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        return [];
+    }
+};
+
+const customCategoryOrder = ref(getStoredCategoryOrder());
+
+const orderedCategories = computed(() => {
+    if (!props.categories?.length) return [];
+    if (!customCategoryOrder.value?.length) return props.categories;
+
+    const orderMap = new Map();
+    customCategoryOrder.value.forEach((code, idx) => {
+        orderMap.set(String(code), idx);
+    });
+
+    return [...props.categories].sort((a, b) => {
+        const orderA = orderMap.has(String(a.code)) ? orderMap.get(String(a.code)) : 9999;
+        const orderB = orderMap.has(String(b.code)) ? orderMap.get(String(b.code)) : 9999;
+        return orderA - orderB;
+    });
+});
+
+// Point 2: Kategori Pilihan Pengadaan - diambil dinamis dari props.categories (sesuai urutan UI kustom)
 const quickCategoryIcons = computed(() => [
     { title: 'Semua Kategori', gambar_url: null, catCode: '' },
-    ...props.categories.map((cat) => ({
+    ...orderedCategories.value.map((cat) => ({
         title: cat.name,
         gambar_url: cat.gambar_url,
         catCode: cat.code,
     })),
 ]);
 
-// Kategori Pilihan Pengadaan: horizontal carousel yang digeser lewat tombol panah,
-// bukan dengan menarik scrollbar secara langsung.
+// Interactive Category Order Setting Modal State & Methods
+const showCategoryOrderModal = ref(false);
+const editableCategoryList = ref([]);
+
+const openCategoryOrderModal = () => {
+    editableCategoryList.value = [...orderedCategories.value];
+    showCategoryOrderModal.value = true;
+};
+
+const moveCategoryInModal = (index, delta) => {
+    const targetIndex = index + delta;
+    if (targetIndex < 0 || targetIndex >= editableCategoryList.value.length) return;
+    const list = [...editableCategoryList.value];
+    const temp = list[index];
+    list[index] = list[targetIndex];
+    list[targetIndex] = temp;
+    editableCategoryList.value = list;
+};
+
+const saveCategoryOrderModal = () => {
+    const codes = editableCategoryList.value.map(c => String(c.code));
+    customCategoryOrder.value = codes;
+    try {
+        localStorage.setItem('category_custom_order', JSON.stringify(codes));
+    } catch (e) {
+        console.error("Failed to save category custom order:", e);
+    }
+    showCategoryOrderModal.value = false;
+};
+
+const resetCategoryOrderModal = () => {
+    try {
+        localStorage.removeItem('category_custom_order');
+    } catch (e) {}
+    customCategoryOrder.value = [];
+    editableCategoryList.value = [...props.categories];
+};
+
+// Drag & Drop State & Methods for Category Order Modal
+const draggedCategoryIndex = ref(null);
+const dragOverCategoryIndex = ref(null);
+
+const onCategoryDragStart = (index, event) => {
+    draggedCategoryIndex.value = index;
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+    }
+};
+
+const onCategoryDragOver = (index, event) => {
+    event.preventDefault();
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+    }
+    dragOverCategoryIndex.value = index;
+};
+
+const onCategoryDrop = (index, event) => {
+    event.preventDefault();
+    if (draggedCategoryIndex.value !== null && draggedCategoryIndex.value !== index) {
+        const list = [...editableCategoryList.value];
+        const [draggedItem] = list.splice(draggedCategoryIndex.value, 1);
+        list.splice(index, 0, draggedItem);
+        editableCategoryList.value = list;
+    }
+    draggedCategoryIndex.value = null;
+    dragOverCategoryIndex.value = null;
+};
+
+const onCategoryDragEnd = () => {
+    draggedCategoryIndex.value = null;
+    dragOverCategoryIndex.value = null;
+};
+
 const categoryScrollRef = ref(null);
 const canScrollCategoryLeft = ref(false);
 const canScrollCategoryRight = ref(false);
@@ -804,36 +903,46 @@ watch(quickCategoryIcons, () => {
                 </div>
             </div>
 
-            <!-- 2. Point 2: Category Section - Horizontal Carousel dengan Tombol Panah ("kategori pada dashboard diratakan") -->
             <div class="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between flex-wrap gap-2">
                     <div class="flex items-center space-x-2 text-slate-900 font-black text-base">
                         <Grid class="w-5 h-5 text-indigo-600" />
                         <span>Kategori Pilihan Pengadaan</span>
                     </div>
 
-                    <!-- Left/Right Navigation Buttons: geser daftar kategori, bukan lewat drag scrollbar -->
-                    <div class="flex items-center space-x-1.5">
+                    <div class="flex items-center space-x-2">
+                        <!-- Button Trigger Atur Urutan Kategori -->
                         <button
                             type="button"
-                            @click="scrollCategoryList('left')"
-                            :disabled="!canScrollCategoryLeft"
-                            class="w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-600 disabled:hover:border-slate-200"
+                            @click="openCategoryOrderModal"
+                            class="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                            title="Atur Urutan Tampil Kategori"
                         >
-                            <ChevronLeft class="w-4 h-4" />
+                            <SlidersHorizontal class="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Atur Urutan</span>
                         </button>
-                        <button
-                            type="button"
-                            @click="scrollCategoryList('right')"
-                            :disabled="!canScrollCategoryRight"
-                            class="w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-600 disabled:hover:border-slate-200"
-                        >
-                            <ChevronRight class="w-4 h-4" />
-                        </button>
+
+                        <div class="flex items-center space-x-1">
+                            <button
+                                type="button"
+                                @click="scrollCategoryList('left')"
+                                :disabled="!canScrollCategoryLeft"
+                                class="w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-600 disabled:hover:border-slate-200"
+                            >
+                                <ChevronLeft class="w-4 h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                @click="scrollCategoryList('right')"
+                                :disabled="!canScrollCategoryRight"
+                                class="w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-600 disabled:hover:border-slate-200"
+                            >
+                                <ChevronRight class="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Point 2: Category Icon Cards - Scroll Horizontal (klik panah untuk geser, bukan drag scrollbar) -->
                 <div
                     ref="categoryScrollRef"
                     class="flex items-stretch gap-3 overflow-x-auto no-scrollbar scroll-smooth pt-2 pb-1"
@@ -1508,6 +1617,108 @@ watch(quickCategoryIcons, () => {
                     <Button type="button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl h-12 font-bold shadow-md" :disabled="!cartItems.length" @click="pesanSekarang">
                         Buat Pesanan
                     </Button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Category Order Setting Modal -->
+        <div v-if="showCategoryOrderModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in">
+            <div class="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 w-full max-w-lg shadow-2xl border border-slate-200 space-y-3 sm:space-y-4 max-h-[92vh] flex flex-col min-w-0">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 sm:pb-3 shrink-0">
+                    <div class="flex items-center space-x-2 text-slate-900 font-extrabold text-sm sm:text-base min-w-0">
+                        <SlidersHorizontal class="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 shrink-0" />
+                        <span class="truncate">Pengaturan Urutan Kategori</span>
+                    </div>
+                    <button type="button" @click="showCategoryOrderModal = false" class="p-1 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer shrink-0">
+                        <X class="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                </div>
+
+                <p class="text-[11px] sm:text-xs text-slate-500 font-medium shrink-0 leading-relaxed">
+                    <b>Geser (Drag & Drop)</b> atau gunakan tombol <b>▲ / ▼</b> di bawah ini untuk mengatur urutan kategori pilihan sesuai keinginan Anda.
+                </p>
+
+                <!-- Category Items Drag & Drop Reordering List -->
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar min-h-0">
+                    <div
+                        v-for="(cat, index) in editableCategoryList"
+                        :key="cat.code"
+                        draggable="true"
+                        @dragstart="onCategoryDragStart(index, $event)"
+                        @dragover="onCategoryDragOver(index, $event)"
+                        @drop="onCategoryDrop(index, $event)"
+                        @dragend="onCategoryDragEnd"
+                        class="flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition gap-1.5 sm:gap-2 cursor-grab active:cursor-grabbing select-none"
+                        :class="[
+                            draggedCategoryIndex === index ? 'opacity-40 border-dashed border-indigo-500 bg-indigo-50/50' : 'bg-slate-50/70 hover:bg-indigo-50/40 border-slate-200',
+                            dragOverCategoryIndex === index && draggedCategoryIndex !== index ? 'border-2 border-indigo-600 bg-indigo-100/50 shadow-md scale-[1.01]' : ''
+                        ]"
+                    >
+                        <div class="flex items-center space-x-2 sm:space-x-2.5 min-w-0 flex-1">
+                            <!-- Drag Handle Icon -->
+                            <GripVertical class="w-4 h-4 text-slate-400 shrink-0 hover:text-indigo-600 cursor-grab" />
+                            
+                            <span class="w-5 h-5 sm:w-6 sm:h-6 rounded-md sm:rounded-lg bg-indigo-600 text-white font-black text-[10px] sm:text-[11px] flex items-center justify-center shrink-0 shadow-2xs">
+                                {{ index + 1 }}
+                            </span>
+                            <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl border bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                                <img v-if="cat.gambar_url" :src="cat.gambar_url" class="w-full h-full object-cover pointer-events-none" />
+                                <Package v-else class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
+                            </div>
+                            <span class="font-bold text-slate-800 text-xs sm:text-sm truncate pointer-events-none min-w-0">{{ cat.name }}</span>
+                        </div>
+
+                        <div class="flex items-center space-x-1 shrink-0">
+                            <!-- Move Up Button -->
+                            <button
+                                type="button"
+                                @click.stop="moveCategoryInModal(index, -1)"
+                                :disabled="index === 0"
+                                class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-indigo-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs flex items-center justify-center font-black text-[10px] sm:text-xs"
+                                title="Naikkan Urutan"
+                            >
+                                ▲
+                            </button>
+                            <!-- Move Down Button -->
+                            <button
+                                type="button"
+                                @click.stop="moveCategoryInModal(index, 1)"
+                                :disabled="index === editableCategoryList.length - 1"
+                                class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-indigo-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs flex items-center justify-center font-black text-[10px] sm:text-xs"
+                                title="Turunkan Urutan"
+                            >
+                                ▼
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Action Buttons (Responsive Layout for Mobile) -->
+                <div class="pt-2.5 sm:pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-col sm:flex-row shrink-0">
+                    <button
+                        type="button"
+                        @click="resetCategoryOrderModal"
+                        class="w-full sm:w-auto px-3 py-2 border border-slate-300 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-100 transition cursor-pointer text-center"
+                    >
+                        Reset Urutan Bawaan
+                    </button>
+
+                    <div class="w-full sm:w-auto flex items-center space-x-2 justify-end">
+                        <button
+                            type="button"
+                            @click="showCategoryOrderModal = false"
+                            class="flex-1 sm:flex-none px-3 py-2 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-100 transition cursor-pointer text-center"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="button"
+                            @click="saveCategoryOrderModal"
+                            class="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition cursor-pointer text-center"
+                        >
+                            Simpan Urutan
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
