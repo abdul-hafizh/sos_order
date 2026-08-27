@@ -1003,7 +1003,7 @@ const destroyVendor = () => {
                                 </div>
                             </div>
 
-                            <div>
+                            <div v-if="false">
                                 <label class="text-xs text-gray-400 font-medium"
                                     >Produk</label
                                 >

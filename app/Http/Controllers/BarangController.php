@@ -683,16 +683,12 @@ class BarangController extends Controller
 
     /**
      * Sinkron otomatis ke m_item begitu semua kolom wajib (produk detail + harga) sudah
-     * terisi. Kalau kode_barang ini sudah pernah disinkron sebelumnya, tidak insert lagi -
-     * itu sebabnya ini cuma create sekali, bukan updateOrCreate seperti versi lama di
-     * menu Produk Detail (fitur itu sudah dipindah & disederhanakan ke sini).
+     * terisi. Pakai updateOrCreate berdasarkan itemcode - insert kalau baris m_item-nya
+     * belum ada, atau resinkron ulang semua kolomnya tiap kali barang diupdate kalau
+     * sudah ada, supaya buyingprice/sellingprice ikut naik-turun sesuai t_spk & margin.
      */
     private function syncMItemIfEligible(Barang $barang, MasterProdukDetail $produkDetail): void
     {
-        if (MItem::where('itemcode', $barang->kode_barang)->exists()) {
-            return;
-        }
-
         $missingDetail = $this->missingProdukDetailFieldsForSync($produkDetail);
         $missingHarga = $this->missingHargaFieldsForSync($barang);
 
@@ -702,21 +698,17 @@ class BarangController extends Controller
 
         $produkDetail->loadMissing(['category', 'uom']);
 
-        $ppnPercent = (float) (Ppn::where('active', 1)->orderByDesc('id_ppn')->value('persen_ppn') ?? 0);
-        $marginPercent = (float) ($produkDetail->category->margin ?? 0);
-
-        $hargaJualSetelahPpn = $barang->harga_jual * (1 + $ppnPercent / 100);
-        $sellingPrice = round($hargaJualSetelahPpn * (1 + $marginPercent / 100), 2);
-
-        // endstock = total qty SPK barang ini x qty_pos t_barang. Dijumlah di PHP
-        // (bukan SUM() di SQL) karena kolom t_spk.qty bertipe varchar di database.
-        $totalSpkQty = Spk::where('id_barang', $barang->id_barang)
-            ->pluck('qty')
-            ->sum(fn($qty) => (float) $qty);
+        $spkRows = Spk::where('id_barang', $barang->id_barang)->get();
+        $totalSpkQty = $spkRows->sum(fn($spk) => (float) $spk->qty);
         $endstock = $totalSpkQty * (float) $barang->qty_pos;
 
-        MItem::create([
-            'itemcode' => $barang->kode_barang,
+        $latestSpk = $spkRows->sortByDesc('id_po')->first();
+        $buyingPrice = (float) ($latestSpk->harga_jual_include_ppn ?? 0);
+
+        $marginPercent = (float) ($produkDetail->category->margin ?? 0);
+        $sellingPrice = round($buyingPrice * (1 + $marginPercent / 100), 2);
+
+        MItem::updateOrCreate(['itemcode' => $barang->kode_barang], [
             'itemcodeint' => $barang->kode_barang,
             'itemcodeint1' => $barang->kode_barang,
             'barcode1' => $barang->kode_barang,
@@ -728,7 +720,7 @@ class BarangController extends Controller
             'minstock' => $barang->min_stok,
             'maxstock' => $barang->max_stok,
             'endstock' => $endstock,
-            'buyingprice' => $barang->harga_beli,
+            'buyingprice' => $buyingPrice,
             'lastbuyingprice' => $barang->harga_beli_before,
             'sellingprice' => $sellingPrice,
             'sellingpricealt' => $sellingPrice,
@@ -864,8 +856,8 @@ class BarangController extends Controller
 
             $produkDetail = $this->syncProdukDetail($request, $barang, $detailData, $embeddingService);
 
-            $this->syncMItemIfEligible($barang, $produkDetail);
             $this->syncSpkPpnFields($barang);
+            $this->syncMItemIfEligible($barang, $produkDetail);
 
             $variants = $request->input('variants', []);
 
