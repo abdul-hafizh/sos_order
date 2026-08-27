@@ -13,6 +13,9 @@ class MasterKategoriController extends Controller
     {
         $categories = Category::query()
             ->when($request->search, fn($q, $s) => $q->where('categoryname', 'like', "%{$s}%"))
+            ->orderByRaw('CASE WHEN urutan IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('urutan')
+            ->orderBy('categoryname')
             ->paginate($request->per_page ?? 10)
             ->withQueryString();
 
@@ -28,6 +31,8 @@ class MasterKategoriController extends Controller
 
         $validated = $request->validate([
             'gambar' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'active' => 'nullable|boolean',
+            'urutan' => 'nullable|integer|min:0',
         ]);
 
         if ($request->hasFile('gambar')) {
@@ -36,10 +41,14 @@ class MasterKategoriController extends Controller
             }
 
             $validated['gambar'] = $request->file('gambar')->store('kategori', 'public');
+        } else {
+            // Tidak ada file baru diupload - jangan timpa gambar yang sudah ada
+            // dengan null (form selalu mengirim key 'gambar' meski kosong).
+            unset($validated['gambar']);
         }
 
         $category->update($validated);
 
-        return back()->with('success', 'Gambar kategori berhasil diperbarui');
+        return back()->with('success', 'Kategori berhasil diperbarui');
     }
 }

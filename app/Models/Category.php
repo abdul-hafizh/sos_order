@@ -29,12 +29,16 @@ class Category extends Model
         'markup',
         'margin',
         'user_id',
+        'active',
+        'urutan',
     ];
 
     protected $casts = [
         'komisi' => 'decimal:2',
         'komisinilai' => 'decimal:2',
         'cekpengambilan' => 'boolean',
+        'active' => 'boolean',
+        'urutan' => 'integer',
     ];
 
     protected $appends = [

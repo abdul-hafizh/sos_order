@@ -286,12 +286,19 @@ class BarangController extends Controller
                 ->withQueryString();
         }
 
-        // Ambil list kategori
+        // Ambil list kategori aktif, urutan default mengikuti setingan admin di
+        // menu Master Kategori. User masih bisa override urutan ini sendiri di
+        // dashboard (disimpan di localStorage, lihat orderedCategories di Dashboard.vue).
         $categories = Category::select([
             'categorycode',
             'categoryname',
             'gambar',
-        ])->get();
+        ])
+            ->where('active', true)
+            ->orderByRaw('CASE WHEN urutan IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('urutan')
+            ->orderBy('categoryname')
+            ->get();
 
         // Ambil list service (MasterTipe) beserta sub-kategori masing-masing
         $services = \App\Models\MasterTipe::query()
@@ -304,6 +311,7 @@ class BarangController extends Controller
                     ->pluck('category_id');
 
                 $subCategories = \App\Models\Category::whereIn('categorycode', $categoryCodes)
+                    ->where('active', true)
                     ->select(['categorycode', 'categoryname'])
                     ->get()
                     ->map(fn($c) => [
@@ -730,11 +738,12 @@ class BarangController extends Controller
     }
 
     /**
-     * Update kolom PPN pada semua baris t_spk milik barang ini (dicocokkan lewat
-     * id_barang). id_ppn & ppn_persen diambil dari m_ppn yang sedang aktif - ppn_persen
-     * disimpan apa adanya (mis. 11.00, sama seperti m_ppn.persen_ppn). Pembagian per
-     * 100 hanya dipakai saat menghitung nilai_ppn dalam rupiah, bukan pada kolom
-     * ppn_persen itu sendiri.
+     * Update kolom PPN + nama_barang pada semua baris t_spk milik barang ini (dicocokkan
+     * lewat id_barang). id_ppn & ppn_persen diambil dari m_ppn yang sedang aktif -
+     * ppn_persen disimpan apa adanya (mis. 11.00, sama seperti m_ppn.persen_ppn).
+     * Pembagian per 100 hanya dipakai saat menghitung nilai_ppn dalam rupiah, bukan pada
+     * kolom ppn_persen itu sendiri. nama_barang ikut disinkron supaya SPK selalu
+     * menampilkan nama terbaru begitu diubah dari menu Barang.
      */
     private function syncSpkPpnFields(Barang $barang): void
     {
@@ -756,6 +765,7 @@ class BarangController extends Controller
             $nilaiPpn = ($ppnPersen / 100) * $hargaJualDpp;
 
             $spk->update([
+                'nama_barang' => $barang->nama_barang,
                 'harga_jual' => $hargaJualDpp,
                 'id_ppn' => $idPpn,
                 'ppn_persen' => $ppnPersen,

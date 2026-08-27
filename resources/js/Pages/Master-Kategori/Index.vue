@@ -5,6 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
+import { Checkbox } from '@/Components/ui/checkbox';
 import { Tag, Pencil, ImageOff } from 'lucide-vue-next';
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/Components/ui/item';
 
@@ -36,12 +37,16 @@ const onPerPageChange = () => {
 
 const form = useForm({
     gambar: null,
+    active: true,
+    urutan: 0,
 });
 
 const openModal = (item) => {
     editingCategory.value = item;
     preview.value = item.gambar_url;
     form.gambar = null;
+    form.active = !!item.active;
+    form.urutan = item.urutan ?? 0;
     form.clearErrors();
     showModal.value = true;
 };
@@ -92,7 +97,7 @@ const closeModal = () => {
                     </ItemMedia>
                     <ItemContent class="w-full">
                         <ItemTitle class="text-lg font-semibold">Data Kategori</ItemTitle>
-                        <ItemDescription class="text-sm">Daftar kategori produk urutan asli database. Klik tombol edit untuk memperbarui gambar kategori.</ItemDescription>
+                        <ItemDescription class="text-sm">Atur status aktif dan urutan tampil kategori di dashboard. Klik tombol edit untuk mengubahnya.</ItemDescription>
                     </ItemContent>
                 </Item>
             </div>
@@ -111,6 +116,8 @@ const closeModal = () => {
                             <TableHead class="w-20">Gambar</TableHead>
                             <TableHead>Kode</TableHead>
                             <TableHead>Nama Kategori</TableHead>
+                            <TableHead class="text-center">Urutan</TableHead>
+                            <TableHead class="text-center">Status</TableHead>
                             <TableHead class="text-center">Action</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -124,9 +131,18 @@ const closeModal = () => {
                             </TableCell>
                             <TableCell class="font-mono text-xs">{{ item.categorycode }}</TableCell>
                             <TableCell class="font-bold text-slate-800">{{ item.categoryname }}</TableCell>
+                            <TableCell class="text-center text-slate-600">{{ item.urutan ?? '-' }}</TableCell>
+                            <TableCell class="text-center">
+                                <span
+                                    class="px-2 py-0.5 rounded-full text-xs font-medium border"
+                                    :class="item.active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'"
+                                >
+                                    {{ item.active ? 'Aktif' : 'Nonaktif' }}
+                                </span>
+                            </TableCell>
                             <TableCell class="text-center">
                                 <div class="flex gap-2 justify-center">
-                                    <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md hover:bg-blue-600" @click="openModal(item)" title="Edit Gambar">
+                                    <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md hover:bg-blue-600" @click="openModal(item)" title="Edit Kategori">
                                         <Pencil class="w-4 h-4" />
                                     </Button>
                                 </div>
@@ -147,9 +163,9 @@ const closeModal = () => {
             <!-- Edit Modal Component -->
             <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                 <div class="bg-white p-6 rounded-2xl w-full max-w-sm shadow-xl space-y-4">
-                    <h2 class="font-bold text-lg border-b pb-2 text-slate-900">Edit Gambar Kategori</h2>
+                    <h2 class="font-bold text-lg border-b pb-2 text-slate-900">Edit Kategori</h2>
                     <p class="text-sm font-medium text-slate-600">{{ editingCategory?.categoryname }} ({{ editingCategory?.categorycode }})</p>
-                    
+
                     <form @submit.prevent="submit" class="space-y-4">
                         <!-- Gambar Input Field -->
                         <div class="space-y-1">
@@ -161,6 +177,20 @@ const closeModal = () => {
                             <input type="file" accept="image/png,image/jpeg,image/webp" @change="onFileChange" class="block w-full text-xs text-gray-600" />
                             <p v-if="form.errors.gambar" class="text-xs text-red-500 mt-1">{{ form.errors.gambar }}</p>
                         </div>
+
+                        <!-- Urutan Input Field -->
+                        <div class="space-y-1">
+                            <label class="block text-xs font-bold text-slate-700">Urutan Tampil</label>
+                            <Input type="number" min="0" v-model.number="form.urutan" class="border-gray-300 rounded-md" />
+                            <p class="text-xs text-gray-400">Angka lebih kecil tampil lebih dulu di dashboard.</p>
+                            <p v-if="form.errors.urutan" class="text-xs text-red-500 mt-1">{{ form.errors.urutan }}</p>
+                        </div>
+
+                        <!-- Aktif Checkbox -->
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <Checkbox v-model="form.active" />
+                            Aktifkan kategori ini di dashboard
+                        </label>
 
                         <div class="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" @click="closeModal">Batal</Button>

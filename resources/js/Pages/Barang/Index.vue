@@ -384,9 +384,13 @@ const submit = () => {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
-                closeModal();
+                // Beri jeda supaya toast "berhasil diupdate" sempat terbaca,
+                // baru refresh halaman - reload ini juga otomatis menutup modal.
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
             },
-            onFinish: () => {
+            onError: () => {
                 isSubmitting.value = false;
             },
         },
