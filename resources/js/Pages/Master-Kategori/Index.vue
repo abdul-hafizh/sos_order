@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import { Tag, Pencil, ImageOff } from 'lucide-vue-next';
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/Components/ui/item';
+import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/Components/ui/item';
 
 const props = defineProps({
     categories: Object,
@@ -34,12 +34,14 @@ const onPerPageChange = () => {
     router.get(route('master-kategori.index'), params.value, { preserveState: true, replace: true });
 };
 
-const form = useForm({ gambar: null });
+const form = useForm({
+    gambar: null,
+});
 
 const openModal = (item) => {
     editingCategory.value = item;
     preview.value = item.gambar_url;
-    form.reset();
+    form.gambar = null;
     form.clearErrors();
     showModal.value = true;
 };
@@ -90,7 +92,7 @@ const closeModal = () => {
                     </ItemMedia>
                     <ItemContent class="w-full">
                         <ItemTitle class="text-lg font-semibold">Data Kategori</ItemTitle>
-                        <ItemDescription class="text-sm">Kelola gambar kategori produk. Data kategori hanya bisa diedit gambarnya.</ItemDescription>
+                        <ItemDescription class="text-sm">Daftar kategori produk urutan asli database. Klik tombol edit untuk memperbarui gambar kategori.</ItemDescription>
                     </ItemContent>
                 </Item>
             </div>
@@ -120,11 +122,13 @@ const closeModal = () => {
                                     <ImageOff v-else class="w-5 h-5 text-gray-300" />
                                 </div>
                             </TableCell>
-                            <TableCell>{{ item.categorycode }}</TableCell>
-                            <TableCell>{{ item.categoryname }}</TableCell>
+                            <TableCell class="font-mono text-xs">{{ item.categorycode }}</TableCell>
+                            <TableCell class="font-bold text-slate-800">{{ item.categoryname }}</TableCell>
                             <TableCell class="text-center">
                                 <div class="flex gap-2 justify-center">
-                                    <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md" @click="openModal(item)"><Pencil class="w-4 h-4" /></Button>
+                                    <Button variant="ghost" size="xs" class="bg-blue-500 text-white rounded-md hover:bg-blue-600" @click="openModal(item)" title="Edit Gambar">
+                                        <Pencil class="w-4 h-4" />
+                                    </Button>
                                 </div>
                             </TableCell>
                         </TableRow>
@@ -140,20 +144,27 @@ const closeModal = () => {
                 </Link>
             </div>
 
+            <!-- Edit Modal Component -->
             <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div class="bg-white p-6 rounded-lg w-full max-w-sm shadow-xl">
-                    <h2 class="font-bold mb-4 text-lg border-b pb-2">Edit Gambar Kategori</h2>
-                    <p class="text-sm text-gray-500 mb-4">{{ editingCategory?.categoryname }}</p>
+                <div class="bg-white p-6 rounded-2xl w-full max-w-sm shadow-xl space-y-4">
+                    <h2 class="font-bold text-lg border-b pb-2 text-slate-900">Edit Gambar Kategori</h2>
+                    <p class="text-sm font-medium text-slate-600">{{ editingCategory?.categoryname }} ({{ editingCategory?.categorycode }})</p>
+                    
                     <form @submit.prevent="submit" class="space-y-4">
-                        <div class="w-full h-40 rounded-md border bg-gray-50 flex items-center justify-center overflow-hidden">
-                            <img v-if="preview" :src="preview" class="w-full h-full object-contain" />
-                            <ImageOff v-else class="w-8 h-8 text-gray-300" />
+                        <!-- Gambar Input Field -->
+                        <div class="space-y-1">
+                            <label class="block text-xs font-bold text-slate-700">Gambar Kategori</label>
+                            <div class="w-full h-36 rounded-xl border bg-gray-50 flex items-center justify-center overflow-hidden mb-2">
+                                <img v-if="preview" :src="preview" class="w-full h-full object-contain" />
+                                <ImageOff v-else class="w-8 h-8 text-gray-300" />
+                            </div>
+                            <input type="file" accept="image/png,image/jpeg,image/webp" @change="onFileChange" class="block w-full text-xs text-gray-600" />
+                            <p v-if="form.errors.gambar" class="text-xs text-red-500 mt-1">{{ form.errors.gambar }}</p>
                         </div>
-                        <input type="file" accept="image/png,image/jpeg,image/webp" @change="onFileChange" class="block w-full text-sm text-gray-600" />
-                        <p v-if="form.errors.gambar" class="text-sm text-red-500 -mt-2">{{ form.errors.gambar }}</p>
-                        <div class="flex justify-end gap-2 pt-4">
+
+                        <div class="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" @click="closeModal">Batal</Button>
-                            <Button type="submit" class="bg-blue-600 text-white" :disabled="form.processing">Simpan</Button>
+                            <Button type="submit" class="bg-blue-600 text-white font-bold" :disabled="form.processing">Simpan</Button>
                         </div>
                     </form>
                 </div>

@@ -128,7 +128,7 @@ class BarangController extends Controller
             'filters' => $request->only(['search', 'per_page']),
             'list_satuan' => MasterSatuan::orderBy('nama')->get(),
             'list_produk' => MasterProduk::orderBy('nama_produk')->get(['id_produk', 'nama_produk', 'deskripsi']),
-            'list_kategori' => Category::orderBy('categoryname')->get(['categorycode', 'categoryname']),
+            'list_kategori' => Category::get(['categorycode', 'categoryname']),
             'list_tipe' => MasterTipe::orderBy('nama')->get(),
             'list_berat' => MasterBerat::orderBy('nama')->get(),
             'list_ukuran' => MasterUkuran::orderBy('nama')->get(),
@@ -291,14 +291,11 @@ class BarangController extends Controller
             'categorycode',
             'categoryname',
             'gambar',
-        ])
-            ->orderBy('categoryname')
-            ->get();
+        ])->get();
 
         // Ambil list service (MasterTipe) beserta sub-kategori masing-masing
         $services = \App\Models\MasterTipe::query()
             ->select(['id_tipe', 'nama'])
-            ->orderBy('nama')
             ->get()
             ->map(function ($tipe) {
                 $categoryCodes = \App\Models\MasterProdukDetail::where('id_tipe', $tipe->id_tipe)
@@ -308,7 +305,6 @@ class BarangController extends Controller
 
                 $subCategories = \App\Models\Category::whereIn('categorycode', $categoryCodes)
                     ->select(['categorycode', 'categoryname'])
-                    ->orderBy('categoryname')
                     ->get()
                     ->map(fn($c) => [
                         'code' => $c->categorycode,
