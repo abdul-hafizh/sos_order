@@ -15,7 +15,7 @@ class EnsureIsHoUser
 
         if (!$user || !AdminSos::where('id', $user->id)->exists()) {
             return redirect()->route('dashboard')
-                ->with('error', 'Halaman ini hanya bisa diakses oleh user GSOS.');
+                ->with('error', 'Halaman ini hanya bisa diakses oleh Admin.');
         }
 
         return $next($request);

@@ -732,6 +732,7 @@ const showCategoryOrderModal = ref(false);
 const editableCategoryList = ref([]);
 
 const openCategoryOrderModal = () => {
+    if (!currentUser.value?.is_admin) return;
     editableCategoryList.value = [...orderedCategories.value];
     showCategoryOrderModal.value = true;
 };
@@ -911,8 +912,9 @@ watch(quickCategoryIcons, () => {
                     </div>
 
                     <div class="flex items-center space-x-2">
-                        <!-- Button Trigger Atur Urutan Kategori -->
+                        <!-- Button Trigger Atur Urutan Kategori (khusus admin) -->
                         <button
+                            v-if="currentUser?.is_admin"
                             type="button"
                             @click="openCategoryOrderModal"
                             class="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
