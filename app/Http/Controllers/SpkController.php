@@ -10,6 +10,7 @@ use App\Models\MasterProdukDetailGambar;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Libraries\SendTelegram;
 use Inertia\Inertia;
@@ -133,6 +134,10 @@ class SpkController extends Controller
             return back()->with('error', 'Status ketersediaan barang ini sudah dikunci dan tidak dapat diubah lagi.');
         }
 
+        // Simpan ID pemesan sebelum modified_by ditimpa dengan ID admin di
+        // dalam transaksi, supaya notifikasi Telegram dikirim ke pemesan asli.
+        $pemesanId = $spk->modified_by;
+
         $isBarangBaruBelumProvisi = !$spk->kode_barang
             && !$spk->id_barang
             && $spk->keterangan === 'Permintaan barang baru';
@@ -185,7 +190,7 @@ class SpkController extends Controller
                 $message .= "<i>Catatan: Mohon maaf, barang tidak dapat disediakan saat ini. Silakan hubungi admin pusat untuk informasi lebih lanjut.</i>";
             }
 
-            $userCabang = User::where('id', $spk->modified_by)
+            $userCabang = User::where('id', $pemesanId)
                 ->whereNotNull('telegram_chat_id')
                 ->where('telegram_chat_id', '!=', '')
                 ->first();
@@ -193,7 +198,7 @@ class SpkController extends Controller
             if ($userCabang && $userCabang->telegram_chat_id) {
                 SendTelegram::sendMessage($userCabang->telegram_chat_id, $message);
             } else {
-                Log::warning("Gagal mengirim notif Telegram SPK ID #{$spk->id_po}: User dengan ID Pembuat '{$spk->modified_by}' tidak ditemukan atau belum mengisi telegram_chat_id.");
+                Log::warning("Gagal mengirim notif Telegram SPK ID #{$spk->id_po}: User dengan ID Pemesan '{$pemesanId}' tidak ditemukan atau belum mengisi telegram_chat_id.");
             }
 
         } catch (\Exception $e) {

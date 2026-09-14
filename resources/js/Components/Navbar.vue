@@ -62,6 +62,7 @@ const masterDataItems = [
     { name: 'Karakter', route: 'master-karakter.index' },
     { name: 'UOM', route: 'master-uom.index' },
     { name: 'PPN', route: 'master-ppn.index' },
+    { name: 'User Telegram', route: 'user-telegram.index' },
 ];
 
 const getRoute = (name) => (name ? route(name) : '#');

@@ -23,6 +23,7 @@ use App\Http\Controllers\MasterProdukDetailController;
 use App\Http\Controllers\MasterUomController;
 use App\Http\Controllers\MasterPpnController;
 use App\Http\Controllers\AdminHoController;
+use App\Http\Controllers\UserTelegramController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -100,6 +101,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('master-uom', MasterUomController::class);
 
         Route::resource('master-ppn', MasterPpnController::class);
+
+        Route::resource('user-telegram', UserTelegramController::class)
+            ->only(['index', 'update'])
+            ->parameters(['user-telegram' => 'user']);
 
         Route::prefix('barang-vendor')
             ->name('barang-vendor.')
