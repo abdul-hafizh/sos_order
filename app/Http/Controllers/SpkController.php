@@ -7,6 +7,7 @@ use App\Models\Barang;
 use App\Models\MasterProduk;
 use App\Models\MasterProdukDetail;
 use App\Models\MasterProdukDetailGambar;
+use App\Models\Ppn;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -167,6 +168,26 @@ class SpkController extends Controller
             $statusText = $statusLabels[$validated['is_available']];
 
             $hargaBeliFormat = 'Rp ' . number_format($spk->harga_beli, 0, ',', '.');
+
+            // Harga jual yang ditampilkan ke cabang sudah termasuk PPN. Pakai kolom
+            // harga_jual_include_ppn hasil sinkronisasi dari menu Barang kalau sudah
+            // terisi; kalau belum (mis. barang baru yang belum pernah disinkron),
+            // hitung ulang di sini pakai PPN yang sedang aktif supaya tetap tampil.
+            $hargaJualIncludePpn = (float) ($spk->harga_jual_include_ppn ?? 0);
+
+            if ($hargaJualIncludePpn <= 0) {
+                $hargaJualDpp = (float) ($spk->harga_jual_dpp ?: $spk->harga_jual);
+                $ppnPersen = (float) ($spk->ppn_persen ?: 0);
+
+                if ($ppnPersen <= 0) {
+                    $ppnAktif = Ppn::where('active', 1)->orderByDesc('id_ppn')->first();
+                    $ppnPersen = $ppnAktif ? (float) $ppnAktif->persen_ppn : 0;
+                }
+
+                $hargaJualIncludePpn = $hargaJualDpp + (($ppnPersen / 100) * $hargaJualDpp);
+            }
+
+            $hargaJualFormat = 'Rp ' . number_format($hargaJualIncludePpn, 0, ',', '.');
             $tanggalPesanan = $spk->modified_date ? date('d-m-Y H:i', strtotime($spk->modified_date)) : now()->format('d-m-Y H:i');
 
             $message = "<b>PEMBERITAHUAN STATUS PESANAN BARANG</b>\n\n";
@@ -175,7 +196,8 @@ class SpkController extends Controller
             $message .= "━━━━━━━━━━━━━━━━━━━━━━━\n";
             $message .= "<b>Nama Barang :</b> {$spk->nama_barang}\n";
             $message .= "<b>Qty Pesanan :</b> {$spk->qty} {$spk->satuan}\n";
-            $message .= "<b>Harga Beli   :</b> {$hargaBeliFormat}\n";
+            $message .= "<b>Harga Beli ({$spk->satuan}) :</b> {$hargaBeliFormat}\n";
+            $message .= "<b>Harga Jual ({$spk->satuan}) :</b> {$hargaJualFormat} <i>(sudah termasuk PPN)</i>\n";
             $message .= "<b>Tgl Pesanan  :</b> {$tanggalPesanan}\n";
             $message .= "<b>Cabang       :</b> {$spk->kode_cabang}\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━━\n\n";

@@ -37,6 +37,8 @@ return [
 
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'chatbot_token' => env('TELEGRAM_CHATBOT_TOKEN'),
+        'chatbot_webhook_secret' => env('TELEGRAM_CHATBOT_WEBHOOK_SECRET'),
     ],
 
     'openai' => [

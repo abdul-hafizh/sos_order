@@ -24,6 +24,7 @@ use App\Http\Controllers\MasterUomController;
 use App\Http\Controllers\MasterPpnController;
 use App\Http\Controllers\AdminHoController;
 use App\Http\Controllers\UserTelegramController;
+use App\Http\Controllers\TelegramSyncController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -35,6 +36,13 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [BarangController::class, 'dashboard'])->name('dashboard');
 Route::post('/dashboard/search-image', [BarangController::class, 'searchByImage'])->name('dashboard.search-image');
+
+// Webhook publik untuk bot Telegram "Sync_sos_account" - dipanggil langsung
+// oleh server Telegram (bukan browser), jadi di luar middleware auth & dikecualikan
+// dari CSRF di bootstrap/app.php. Keamanannya divalidasi lewat secret token,
+// bukan lewat session/CSRF.
+Route::post('/telegram/webhook/sync-account', [TelegramSyncController::class, 'webhook'])
+    ->name('telegram.webhook.sync-account');
 
 Route::middleware(['auth', 'verified'])->group(function () {
 

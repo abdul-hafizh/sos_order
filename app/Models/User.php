@@ -13,7 +13,7 @@ class User extends Authenticatable
     protected $fillable = [
         'user', 'pwd', 'nama_user', 'list_menu', 'status',
         'type_user', 'kode_cabang', 'created_by', 'created_date',
-        'modified_by', 'modified_date', 'idx', 'email', 'telegram_chat_id', 'is_admin'
+        'modified_by', 'modified_date', 'idx', 'email', 'no_hp', 'telegram_chat_id', 'is_admin'
     ];
 
     protected $casts = [

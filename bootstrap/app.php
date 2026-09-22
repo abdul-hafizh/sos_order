@@ -21,6 +21,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.ho' => \App\Http\Middleware\EnsureIsAdminHo::class,
             'ho.user' => \App\Http\Middleware\EnsureIsHoUser::class,
         ]);
+
+        // Webhook Telegram dipanggil langsung oleh server Telegram sehingga
+        // tidak membawa CSRF token dari sesi browser. Keamanannya digantikan
+        // dengan validasi secret token di TelegramSyncController.
+        $middleware->validateCsrfTokens(except: [
+            'telegram/webhook/sync-account',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
