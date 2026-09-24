@@ -9,7 +9,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/Components/ui/table";
-import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { ShieldCheck } from "lucide-vue-next";
 import {
@@ -27,20 +26,6 @@ const props = defineProps({
         default: () => [],
     },
 });
-
-const toggleAdmin = (user) => {
-    const confirmMessage = user.is_admin
-        ? `Cabut hak admin dari ${user.nama_user}?`
-        : `Jadikan ${user.nama_user} sebagai Admin GSOS? Admin GSOS sebelumnya (jika ada) akan otomatis dicabut.`;
-
-    if (!confirm(confirmMessage)) return;
-
-    router.put(
-        route("admin-ho.toggle", user.id),
-        {},
-        { preserveScroll: true },
-    );
-};
 
 const updateTelegram = (user, telegramChatId) => {
     const value = telegramChatId.trim();
@@ -84,12 +69,12 @@ const updateTelegram = (user, telegramChatId) => {
 
                     <ItemContent class="w-full">
                         <ItemTitle class="text-lg font-semibold">
-                            Kelola Admin GSOS
+                            Admin GSOS
                         </ItemTitle>
                         <ItemDescription class="text-sm">
-                            Tentukan satu user GSOS sebagai admin.
-                            Hanya boleh ada 1 admin GSOS aktif dalam waktu
-                            bersamaan.
+                            Semua user GSOS otomatis menjadi admin. Isi
+                            Telegram Chat ID supaya user tersebut ikut
+                            menerima notifikasi permintaan barang baru.
                         </ItemDescription>
                     </ItemContent>
                 </Item>
@@ -104,8 +89,6 @@ const updateTelegram = (user, telegramChatId) => {
                             <TableHead>Nama</TableHead>
                             <TableHead>Email</TableHead>
                             <TableHead>Telegram Chat ID</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead class="text-center">Action</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -131,39 +114,11 @@ const updateTelegram = (user, telegramChatId) => {
                                     "
                                 />
                             </TableCell>
-                            <TableCell>
-                                <span
-                                    v-if="user.is_admin"
-                                    class="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full"
-                                >
-                                    Admin GSOS
-                                </span>
-                                <span v-else class="text-xs text-gray-400"
-                                    >Bukan Admin</span
-                                >
-                            </TableCell>
-                            <TableCell class="text-center">
-                                <Button
-                                    size="xs"
-                                    :class="
-                                        user.is_admin
-                                            ? 'bg-red-500 hover:bg-red-600 text-white rounded-md'
-                                            : 'bg-blue-600 hover:bg-blue-700 text-white rounded-md'
-                                    "
-                                    @click="toggleAdmin(user)"
-                                >
-                                    {{
-                                        user.is_admin
-                                            ? "Cabut Admin"
-                                            : "Jadikan Admin"
-                                    }}
-                                </Button>
-                            </TableCell>
                         </TableRow>
 
                         <TableRow v-if="!users.length">
                             <TableCell
-                                colspan="7"
+                                colspan="5"
                                 class="text-center text-gray-400 py-8"
                             >
                                 Tidak ada user dengan kode_cabang GSOS.

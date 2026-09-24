@@ -91,8 +91,10 @@ const removePreview = (index) => {
     previews.value.splice(index, 1);
 };
 
-// Kode Barang di mode edit tidak bisa diubah (lihat template) - kalau bikin baru
-// (belum ada editingProdukDetail), dropdown pencarian barang ini yang dipakai.
+// Dropdown pencarian kode barang ini dipakai baik saat tambah maupun edit -
+// barangOptions() sudah mengecualikan kode_barang yang sedang aktif di form
+// edit (lihat param `current`) supaya barang itu sendiri tetap muncul kalau
+// mau dicari ulang / ganti.
 const barangOptions = ref([]);
 const barangKeyword = ref('');
 const showBarangDropdown = ref(false);
@@ -388,61 +390,46 @@ const submit = () => {
                         <div>
                             <label class="text-xs text-gray-400 font-medium">Kode Barang (t_barang)</label>
 
-                            <template v-if="editingProdukDetail">
-                                <div v-if="selectedBarang" class="flex items-center border rounded-md px-3 py-2 bg-slate-100">
+                            <div class="relative" ref="barangWrapper">
+                                <div v-if="selectedBarang" class="flex items-center justify-between border rounded-md px-3 py-2 bg-slate-50">
                                     <div class="text-sm">
                                         <span class="font-semibold">{{ selectedBarang.kode_barang }}</span>
                                         <span v-if="selectedBarang.nama_barang" class="text-gray-500"> - {{ selectedBarang.nama_barang }}</span>
                                     </div>
+                                    <button type="button" @click="clearBarang" class="text-gray-400 hover:text-red-500">
+                                        <X class="w-4 h-4" />
+                                    </button>
                                 </div>
-                                <div v-else class="border rounded-md px-3 py-2 bg-slate-100 text-sm text-gray-400">
-                                    Belum terhubung
-                                </div>
-                                <p class="text-xs text-gray-400 mt-1">Kode barang tidak bisa diubah dari sini.</p>
-                            </template>
 
-                            <template v-else>
-                                <div class="relative" ref="barangWrapper">
-                                    <div v-if="selectedBarang" class="flex items-center justify-between border rounded-md px-3 py-2 bg-slate-50">
-                                        <div class="text-sm">
-                                            <span class="font-semibold">{{ selectedBarang.kode_barang }}</span>
-                                            <span v-if="selectedBarang.nama_barang" class="text-gray-500"> - {{ selectedBarang.nama_barang }}</span>
-                                        </div>
-                                        <button type="button" @click="clearBarang" class="text-gray-400 hover:text-red-500">
-                                            <X class="w-4 h-4" />
-                                        </button>
+                                <template v-else>
+                                    <div class="relative">
+                                        <Search class="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
+                                        <input
+                                            v-model="barangKeyword"
+                                            @focus="openBarangDropdown"
+                                            placeholder="Cari nama / kode barang..."
+                                            class="w-full border rounded-md pl-8 pr-2 py-2 text-sm"
+                                        />
                                     </div>
 
-                                    <template v-else>
-                                        <div class="relative">
-                                            <Search class="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
-                                            <input
-                                                v-model="barangKeyword"
-                                                @focus="openBarangDropdown"
-                                                placeholder="Cari nama / kode barang..."
-                                                class="w-full border rounded-md pl-8 pr-2 py-2 text-sm"
-                                            />
+                                    <div v-if="showBarangDropdown" class="absolute left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto">
+                                        <div v-if="barangOptions.length === 0" class="text-center text-gray-500 py-4 text-sm">
+                                            Tidak ada barang tersedia
                                         </div>
-
-                                        <div v-if="showBarangDropdown" class="absolute left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto">
-                                            <div v-if="barangOptions.length === 0" class="text-center text-gray-500 py-4 text-sm">
-                                                Tidak ada barang tersedia
-                                            </div>
-                                            <button
-                                                v-for="opt in barangOptions"
-                                                :key="opt.id_barang"
-                                                type="button"
-                                                @click="chooseBarang(opt)"
-                                                class="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
-                                            >
-                                                <span class="font-medium">{{ opt.kode_barang }}</span>
-                                                <span class="text-gray-500"> - {{ opt.nama_barang }}</span>
-                                            </button>
-                                        </div>
-                                    </template>
-                                </div>
-                                <p class="text-xs text-gray-400 mt-1">Hanya barang yang belum terhubung ke produk detail lain yang muncul di daftar. Boleh dikosongkan.</p>
-                            </template>
+                                        <button
+                                            v-for="opt in barangOptions"
+                                            :key="opt.id_barang"
+                                            type="button"
+                                            @click="chooseBarang(opt)"
+                                            class="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
+                                        >
+                                            <span class="font-medium">{{ opt.kode_barang }}</span>
+                                            <span class="text-gray-500"> - {{ opt.nama_barang }}</span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1">Hanya barang yang belum terhubung ke produk detail lain yang muncul di daftar. Boleh dikosongkan.</p>
 
                             <p v-if="form.errors.kode_barang" class="text-sm text-red-500 mt-1">{{ form.errors.kode_barang }}</p>
                         </div>

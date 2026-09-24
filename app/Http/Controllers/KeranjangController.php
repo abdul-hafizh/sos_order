@@ -323,8 +323,9 @@ class KeranjangController extends Controller
 
     private function notifyAdminBarangBaru($items, $requester)
     {
-        $admins = AdminSos::where('is_admin', 1)
-            ->whereNotNull('telegram_chat_id')
+        // Semua user GSOS (vw_admin_sos) dianggap admin - kirim ke semua yang
+        // sudah mengisi telegram_chat_id, yang belum diisi otomatis dilewati.
+        $admins = AdminSos::whereNotNull('telegram_chat_id')
             ->where('telegram_chat_id', '!=', '')
             ->get();
 

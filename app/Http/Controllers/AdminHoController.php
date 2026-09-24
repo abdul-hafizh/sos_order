@@ -12,25 +12,12 @@ class AdminHoController extends Controller
     public function index()
     {
         return Inertia::render('AdminHo/Index', [
+            // Semua user di vw_admin_sos otomatis admin, tidak ada lagi
+            // pemilihan admin tunggal - halaman ini cuma buat lihat/atur
+            // telegram_chat_id supaya tahu siapa yang bakal menerima notifikasi.
             'users' => AdminSos::orderBy('nama_user')
-                ->get(['id', 'user', 'nama_user', 'email', 'is_admin', 'telegram_chat_id']),
+                ->get(['id', 'user', 'nama_user', 'email', 'telegram_chat_id']),
         ]);
-    }
-
-    public function toggle(Request $request, User $user)
-    {
-        abort_unless(AdminSos::where('id', $user->id)->exists(), 403, 'User bukan bagian dari GSOS.');
-
-        if ($user->is_admin) {
-            $user->update(['is_admin' => 0]);
-
-            return redirect()->back()->with('success', "Admin GSOS {$user->nama_user} dinonaktifkan.");
-        }
-
-        User::whereIn('id', AdminSos::pluck('id'))->update(['is_admin' => 0]);
-        $user->update(['is_admin' => 1]);
-
-        return redirect()->back()->with('success', "{$user->nama_user} sekarang menjadi Admin GSOS.");
     }
 
     public function updateTelegram(Request $request, User $user)

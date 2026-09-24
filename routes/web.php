@@ -74,7 +74,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::middleware('ho.user')->group(function () {
         Route::get('/admin-ho', [AdminHoController::class, 'index'])->name('admin-ho.index');
-        Route::put('/admin-ho/{user}/toggle', [AdminHoController::class, 'toggle'])->name('admin-ho.toggle');
         Route::put('/admin-ho/{user}/telegram', [AdminHoController::class, 'updateTelegram'])->name('admin-ho.updateTelegram');
     });
 

@@ -18,7 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'admin.ho' => \App\Http\Middleware\EnsureIsAdminHo::class,
+            // Semua user di vw_admin_sos dianggap admin - tidak ada lagi
+            // pemilihan admin tunggal lewat flag is_admin, jadi admin.ho &
+            // ho.user memakai pengecekan yang sama.
+            'admin.ho' => \App\Http\Middleware\EnsureIsHoUser::class,
             'ho.user' => \App\Http\Middleware\EnsureIsHoUser::class,
         ]);
 
