@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdminSos;
 use App\Models\Spk;
 use App\Models\Barang;
 use App\Models\MasterProduk;
@@ -212,15 +213,30 @@ class SpkController extends Controller
                 $message .= "<i>Catatan: Mohon maaf, barang tidak dapat disediakan saat ini. Silakan hubungi admin pusat untuk informasi lebih lanjut.</i>";
             }
 
-            $userCabang = User::where('id', $pemesanId)
-                ->whereNotNull('telegram_chat_id')
+            // Penerima: semua user GSOS (vw_admin_sos) yang sudah mengisi
+            // telegram_chat_id, ditambah pemesan kalau punya telegram_chat_id.
+            // Chat ID duplikat hanya dikirimi sekali.
+            $chatIds = AdminSos::whereNotNull('telegram_chat_id')
                 ->where('telegram_chat_id', '!=', '')
-                ->first();
+                ->pluck('telegram_chat_id');
 
-            if ($userCabang && $userCabang->telegram_chat_id) {
-                SendTelegram::sendMessage($userCabang->telegram_chat_id, $message);
-            } else {
-                Log::warning("Gagal mengirim notif Telegram SPK ID #{$spk->id_po}: User dengan ID Pemesan '{$pemesanId}' tidak ditemukan atau belum mengisi telegram_chat_id.");
+            $pemesanChatId = User::where('id', $pemesanId)->value('telegram_chat_id');
+            if (!empty($pemesanChatId)) {
+                $chatIds->push($pemesanChatId);
+            }
+
+            $chatIds = $chatIds->map(fn ($id) => trim((string) $id))->filter()->unique()->values();
+
+            if ($chatIds->isEmpty()) {
+                Log::warning("Notif Telegram SPK ID #{$spk->id_po} tidak dikirim: tidak ada user vw_admin_sos maupun pemesan yang mengisi telegram_chat_id.");
+            }
+
+            foreach ($chatIds as $chatId) {
+                try {
+                    SendTelegram::sendMessage($chatId, $message);
+                } catch (\Exception $e) {
+                    Log::error("Gagal mengirim notif Telegram SPK ID #{$spk->id_po} ke chat_id '{$chatId}': " . $e->getMessage());
+                }
             }
 
         } catch (\Exception $e) {

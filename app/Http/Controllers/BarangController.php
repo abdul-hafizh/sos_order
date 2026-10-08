@@ -764,8 +764,18 @@ class BarangController extends Controller
 
             $nilaiPpn = ($ppnPersen / 100) * $hargaJualDpp;
 
+            // Sama seperti harga_jual: harga beli & satuan SPK yang masih kosong
+            // (mis. SPK barang baru yang di-provision dengan harga 0) di-backfill
+            // dari t_barang, tapi nilai yang sudah terisi tidak ditimpa.
+            $hargaBeli = (float) $spk->harga_beli > 0 ? $spk->harga_beli : $barang->harga_beli;
+            $satuan = $spk->satuan ?: Str::limit((string) $barang->satuan, 10, '');
+            $satuanPos = $spk->satuan_pos ?: Str::limit((string) ($barang->satuan_pos ?: $barang->satuan), 10, '');
+
             $spk->update([
-                'nama_barang' => $barang->nama_barang,
+                'nama_barang' => Str::limit($barang->nama_barang, 50, ''),
+                'harga_beli' => $hargaBeli,
+                'satuan' => $satuan ?: null,
+                'satuan_pos' => $satuanPos ?: null,
                 'harga_jual' => $hargaJualDpp,
                 'id_ppn' => $idPpn,
                 'ppn_persen' => $ppnPersen,
@@ -790,6 +800,7 @@ class BarangController extends Controller
             'harga_jual_jumbo_before' => 'required|numeric',
             'stok' => 'required|integer',
             'qty_pos' => 'required|integer',
+            'satuan_pos' => 'nullable|string|max:50',
             'min_stok' => 'required|integer',
             'max_stok' => 'required|integer',
 
@@ -854,6 +865,7 @@ class BarangController extends Controller
                 'satuan' => $satuanNama,
                 'stok' => $validated['stok'] ?? 0,
                 'qty_pos' => $validated['qty_pos'] ?? 0,
+                'satuan_pos' => $validated['satuan_pos'] ?? null,
                 'min_stok' => $validated['min_stok'] ?? 0,
                 'max_stok' => $validated['max_stok'] ?? 0,
                 'category_code' => $detailData['category_id'] ?? null,

@@ -138,6 +138,7 @@ const form = useForm({
     harga_jual_jumbo_before: 0,
     stok: 0,
     qty_pos: 0,
+    satuan_pos: null,
     min_stok: 0,
     max_stok: 0,
     variants: [emptyVariant()],
@@ -207,6 +208,7 @@ const openModal = (item) => {
     form.harga_jual_jumbo_before = item.harga_jual_jumbo_before ?? 0;
     form.stok = item.stok ?? 0;
     form.qty_pos = item.qty_pos ?? 0;
+    form.satuan_pos = item.satuan_pos ?? null;
     form.min_stok = item.min_stok ?? 0;
     form.max_stok = item.max_stok ?? 0;
 
@@ -961,6 +963,20 @@ const destroyVendor = () => {
                                     v-model="form.qty_pos"
                                     type="number"
                                     class="mt-1 rounded-xl"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="text-sm font-medium text-gray-600"
+                                    >Satuan POS</label
+                                >
+                                <SearchSelect
+                                    v-model="form.satuan_pos"
+                                    :options="list_uom"
+                                    value-key="nama_uom"
+                                    label-key="nama_uom"
+                                    placeholder="Pilih Satuan POS..."
+                                    class="mt-1"
                                 />
                             </div>
 

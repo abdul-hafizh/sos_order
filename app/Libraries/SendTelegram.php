@@ -17,11 +17,19 @@ class SendTelegram
             'parse_mode' => 'HTML',
         ]);
 
-        Log::info('TELEGRAM_SEND_OUT', [
+        $context = [
             'chat_id' => $chatId,
             'status' => $response->status(),
             'body' => $response->body(),
-        ]);
+        ];
+
+        // Telegram membalas ok:false (mis. "chat not found" kalau user belum
+        // menekan Start di bot) - catat sebagai error supaya mudah dilacak.
+        if ($response->json('ok') === true) {
+            Log::info('TELEGRAM_SEND_OUT', $context);
+        } else {
+            Log::error('TELEGRAM_SEND_FAILED', $context);
+        }
 
         return $response->json() ?? [];
     }
