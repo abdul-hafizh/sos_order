@@ -240,6 +240,8 @@ class KeranjangController extends Controller
                     'satuan_pos' => Str::limit($item->satuan, 10, ''),
                     'qty_pos' => 1,
 
+                    // Vendor dipilih admin saat menandai SPK "Tersedia",
+                    // dari vendor yang terdaftar di Master Barang.
                     'kode_vendor' => null,
                     'kirim_langsung' => 0,
                     'status_terima_barang' => 0,

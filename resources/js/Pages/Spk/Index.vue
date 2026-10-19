@@ -4,6 +4,7 @@ import { Head, router, Link, usePage } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
+import SearchSelect from '@/Components/SearchSelect.vue';
 import {
     Search,
     Package,
@@ -166,6 +167,41 @@ const getSpkImages = (spk) => {
         .map((img) => `/storage/${img.path_file}`);
 };
 
+// Master Produk Detail milik barang SPK (relasi barang.produk), selalu data terbaru.
+const masterDetail = (spk) => spk.barang?.produk || null;
+
+const masterImages = (spk) => {
+    return (masterDetail(spk)?.gambars || [])
+        .filter((img) => img.path_file)
+        .map((img) => `/storage/${img.path_file}`);
+};
+
+const masterFields = (spk) => {
+    const detail = masterDetail(spk);
+
+    return [
+        { label: 'Nama Produk', value: detail?.produk?.nama_produk },
+        { label: 'Kategori', value: detail?.category?.categoryname },
+        { label: 'Tipe', value: detail?.tipe?.nama },
+        { label: 'Satuan', value: detail?.satuan?.nama },
+        { label: 'Berat', value: detail?.berat?.nama },
+        { label: 'Ukuran', value: detail?.ukuran?.nama },
+        { label: 'Warna', value: detail?.warna?.nama },
+        { label: 'Karakter', value: detail?.karakter?.nama },
+        { label: 'UOM', value: detail?.uom?.nama_uom },
+    ];
+};
+
+const vendorName = (spk) => {
+    if (!spk.kode_vendor) return '-';
+
+    const vendor = (spk.barang?.vendors || []).find((v) => v.kode_vendor === spk.kode_vendor);
+
+    return vendor?.vendor?.nama_vendor
+        ? `${vendor.vendor.nama_vendor} (${spk.kode_vendor})`
+        : spk.kode_vendor;
+};
+
 const toggleKetersediaan = (spk) => {
     const nextStatus = Number(spk.is_available) === 1 ? 0 : 1;
     const statusLabel = nextStatus === 1 ? 'Tersedia' : 'Tidak Tersedia';
@@ -214,8 +250,28 @@ const changeKetersediaan = (spk, statusBaru) => {
         return;
     }
 
+    // "Tersedia" wajib: barang sudah ada di Master Barang, sudah punya vendor
+    // aktif, lalu admin memilih salah satu vendornya lewat modal.
+    if (statusBaru === 1) {
+        if (perluBuatBarang(spk)) {
+            alert('Barang belum ada di Master Barang. Klik "Buat Barang" lalu atur vendornya terlebih dahulu.');
+            return;
+        }
+
+        const options = vendorOptions(spk);
+
+        if (options.length === 0) {
+            alert(`Barang ${spk.kode_barang} belum punya vendor aktif. Atur vendor di Master Barang terlebih dahulu.`);
+            return;
+        }
+
+        vendorSpk.value = spk;
+        selectedVendor.value = options.length === 1 ? options[0].kode_vendor : (spk.kode_vendor || '');
+        showVendorModal.value = true;
+        return;
+    }
+
     let label = 'Menunggu Verifikasi';
-    if (statusBaru === 1) label = 'Tersedia';
     if (statusBaru === 2) label = 'Tidak Tersedia';
 
     if (!confirm(`Ubah status ketersediaan barang menjadi "${label}"?`)) {
@@ -226,6 +282,61 @@ const changeKetersediaan = (spk, statusBaru) => {
         is_available: statusBaru,
     }, {
         preserveScroll: true,
+    });
+};
+
+const perluBuatBarang = (spk) => {
+    return !spk.kode_barang && spk.keterangan === 'Permintaan barang baru';
+};
+
+// Vendor aktif yang terdaftar di Master Barang untuk barang SPK ini.
+const vendorOptions = (spk) => {
+    return (spk.barang?.vendors || []).map((v) => ({
+        kode_vendor: v.kode_vendor,
+        nama_vendor: v.vendor?.nama_vendor
+            ? `${v.vendor.nama_vendor} (${v.kode_vendor})`
+            : v.kode_vendor,
+    }));
+};
+
+const buatBarang = (spk) => {
+    if (!confirm(`Buat "${spk.nama_barang}" sebagai barang baru di Master Barang?`)) {
+        return;
+    }
+
+    router.post(route('spk.buatBarang', spk.id_po), {}, {
+        preserveScroll: true,
+    });
+};
+
+const showVendorModal = ref(false);
+const vendorSpk = ref(null);
+const selectedVendor = ref('');
+const savingVendor = ref(false);
+
+const closeVendorModal = () => {
+    showVendorModal.value = false;
+    vendorSpk.value = null;
+    selectedVendor.value = '';
+};
+
+const submitTersedia = () => {
+    if (!selectedVendor.value) {
+        alert('Pilih vendor terlebih dahulu.');
+        return;
+    }
+
+    savingVendor.value = true;
+
+    router.put(route('spk.updateKetersediaan', vendorSpk.value.id_po), {
+        is_available: 1,
+        kode_vendor: selectedVendor.value,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => closeVendorModal(),
+        onFinish: () => {
+            savingVendor.value = false;
+        },
     });
 };
 
@@ -456,6 +567,30 @@ const changeKetersediaan = (spk, statusBaru) => {
                                     Tidak Ada
                                 </button>
                             </div>
+
+                            <template v-if="canEditKetersediaan && !isKetersediaanLocked(spk)">
+                                <button
+                                    v-if="perluBuatBarang(spk)"
+                                    type="button"
+                                    class="w-full py-1.5 text-[11px] font-medium rounded-lg border border-blue-600 bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
+                                    @click="buatBarang(spk)"
+                                >
+                                    Buat Barang di Master Barang
+                                </button>
+
+                                <p
+                                    v-else-if="spk.kode_barang && vendorOptions(spk).length === 0"
+                                    class="text-[11px] text-red-600"
+                                >
+                                    Barang belum punya vendor.
+                                    <Link
+                                        :href="route('master-barang.index', { search: spk.kode_barang })"
+                                        class="font-semibold underline"
+                                    >
+                                        Atur vendor di Master Barang
+                                    </Link>
+                                </p>
+                            </template>
                         </div>
 
                     </div>
@@ -485,8 +620,8 @@ const changeKetersediaan = (spk, statusBaru) => {
         </div>
 
         <div v-if="showDetail && selectedSpk" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
-                <div class="p-5 border-b flex items-center justify-between">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                <div class="p-5 border-b flex items-center justify-between shrink-0">
                     <div>
                         <h3 class="font-bold text-lg text-gray-900">
                             Detail SPK #{{ selectedSpk.id_po }}
@@ -501,7 +636,9 @@ const changeKetersediaan = (spk, statusBaru) => {
                     </button>
                 </div>
 
-                <div class="p-5 flex flex-col md:flex-row gap-5 text-sm">
+                <div class="overflow-y-auto">
+                <h4 class="px-5 pt-5 font-semibold text-gray-900">Data Pesanan</h4>
+                <div class="p-5 pt-3 flex flex-col md:flex-row gap-5 text-sm">
                     <!-- Gambar Produk: kiri atas -->
                     <div class="w-full md:w-56 shrink-0 space-y-2">
                         <div class="w-full aspect-square rounded-2xl overflow-hidden border bg-gray-50 flex items-center justify-center">
@@ -560,6 +697,11 @@ const changeKetersediaan = (spk, statusBaru) => {
                         </div>
 
                         <div class="flex items-center justify-between gap-3">
+                            <span class="text-gray-400">Vendor</span>
+                            <span class="font-semibold text-right">{{ vendorName(selectedSpk) }}</span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
                             <span class="text-gray-400">Tanggal Validasi</span>
                             <span class="font-semibold text-right">{{ formatDate(selectedSpk.tgl_validasi) }}</span>
                         </div>
@@ -581,9 +723,100 @@ const changeKetersediaan = (spk, statusBaru) => {
                     </div>
                 </div>
 
-                <div class="p-5 border-t">
+                <!-- Data Master Produk: diambil langsung dari master, ikut berubah kalau master diubah -->
+                <div class="border-t border-gray-100">
+                    <h4 class="px-5 pt-5 font-semibold text-gray-900">Data Master Produk</h4>
+
+                    <p v-if="!masterDetail(selectedSpk)" class="px-5 py-4 text-sm text-gray-400">
+                        Barang ini belum terhubung ke Master Produk Detail.
+                    </p>
+
+                    <div v-else class="p-5 pt-3 flex flex-col md:flex-row gap-5 text-sm">
+                        <div class="w-full md:w-56 shrink-0 space-y-2">
+                            <div class="w-full aspect-square rounded-2xl overflow-hidden border bg-gray-50 flex items-center justify-center">
+                                <img
+                                    v-if="masterImages(selectedSpk).length"
+                                    :src="masterImages(selectedSpk)[0]"
+                                    class="w-full h-full object-cover"
+                                    alt="Gambar Master Produk"
+                                />
+                                <Package v-else class="w-10 h-10 text-gray-300" />
+                            </div>
+
+                            <div
+                                v-if="masterImages(selectedSpk).length > 1"
+                                class="grid grid-cols-4 gap-2"
+                            >
+                                <img
+                                    v-for="(image, index) in masterImages(selectedSpk).slice(1, 5)"
+                                    :key="index"
+                                    :src="image"
+                                    class="w-full aspect-square object-cover rounded-lg border"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="flex-1 space-y-3">
+                            <div
+                                v-for="field in masterFields(selectedSpk)"
+                                :key="field.label"
+                                class="flex items-center justify-between gap-3"
+                            >
+                                <span class="text-gray-400">{{ field.label }}</span>
+                                <span class="font-semibold text-right">{{ field.value || '-' }}</span>
+                            </div>
+
+                            <div class="flex items-start justify-between gap-3 pt-3 border-t border-gray-100">
+                                <span class="text-gray-400 shrink-0">Deskripsi</span>
+                                <span class="font-semibold text-right whitespace-pre-line">{{ masterDetail(selectedSpk)?.produk?.deskripsi || '-' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+
+                <div class="p-5 border-t shrink-0">
                     <Button type="button" class="w-full rounded-2xl" @click="closeDetail">
                         Tutup
+                    </Button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showVendorModal && vendorSpk" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+                <div class="p-5 border-b flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-900">Tandai Tersedia</h3>
+                        <p class="text-sm text-gray-400">{{ vendorSpk.nama_barang }}</p>
+                    </div>
+
+                    <button type="button" class="p-2 rounded-full hover:bg-gray-100" @click="closeVendorModal">
+                        <X class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div class="p-5 space-y-2">
+                    <label class="block text-sm font-medium">Vendor</label>
+                    <SearchSelect
+                        v-model="selectedVendor"
+                        :options="vendorOptions(vendorSpk)"
+                        value-key="kode_vendor"
+                        label-key="nama_vendor"
+                        placeholder="Cari Vendor..."
+                    />
+                    <p class="text-xs text-gray-400">
+                        Daftar vendor diambil dari Master Barang ({{ vendorSpk.kode_barang }}).
+                        Status yang sudah Tersedia tidak dapat diubah lagi.
+                    </p>
+                </div>
+
+                <div class="p-5 border-t flex gap-2">
+                    <Button type="button" variant="outline" class="flex-1 rounded-2xl" @click="closeVendorModal">
+                        Batal
+                    </Button>
+                    <Button type="button" class="flex-1 rounded-2xl" :disabled="savingVendor" @click="submitTersedia">
+                        Simpan
                     </Button>
                 </div>
             </div>

@@ -362,6 +362,7 @@ class BarangController extends Controller
             ]),
 
             'image_keyword' => $request->input('image_keyword'),
+            'image_product_name' => $request->input('image_product_name'),
             'image_path' => $request->input('image_path'),
             'image_similar_ids' => $request->input('image_similar_ids'),
 
@@ -394,6 +395,10 @@ class BarangController extends Controller
                 ->route('dashboard')
                 ->with('error', 'Gagal menganalisis gambar, silakan coba lagi.');
         }
+
+        // Nama singkat (mis. "Kulkas Sharp Silver") untuk isian awal nama permintaan
+        // barang baru. Deskripsi panjang di atas tetap dipakai untuk pencarian kemiripan.
+        $productName = $embeddingService->suggestProductName($file->getRealPath(), $file->getMimeType());
 
         $queryEmbedding = $result['embedding'];
 
@@ -438,6 +443,7 @@ class BarangController extends Controller
             return redirect()->route('dashboard', [
                 'image_no_results' => 1,
                 'image_keyword' => Str::limit($result['description'], 140),
+                'image_product_name' => $productName,
                 'image_path' => $imagePath,
             ])->with('error', 'Tidak ditemukan produk yang mirip dengan gambar ini.');
         }
@@ -448,6 +454,7 @@ class BarangController extends Controller
             'image_similar_ids' => implode(',', $rankedIds),
             'image_matched_gambar_ids' => implode(',', $matchedGambarIds),
             'image_keyword' => Str::limit($result['description'], 140),
+            'image_product_name' => $productName,
             'image_path' => $imagePath,
         ]);
     }

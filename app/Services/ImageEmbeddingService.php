@@ -24,6 +24,22 @@ class ImageEmbeddingService
         mirip.
         PROMPT;
 
+    private const PRODUCT_NAME_PROMPT = <<<'PROMPT'
+        Berikan NAMA PRODUK singkat dalam Bahasa Indonesia untuk satu barang utama pada gambar ini
+        (abaikan orang, tangan, dan latar belakang). Nama ini dipakai sebagai nama barang di katalog
+        toko.
+
+        Format: <jenis barang> <merek, HANYA jika terbaca jelas pada gambar> <ciri penting singkat jika
+        ada, mis. ukuran/tipe> <warna dominan>. Maksimal 6 kata dan 50 karakter. Gunakan huruf kapital di
+        awal tiap kata.
+
+        Contoh: "Kulkas Sharp 2 Pintu Silver", "Botol Minum Tupperware Biru", "Kipas Angin Berdiri Putih",
+        "Sepatu Lari Hitam".
+
+        Jawab HANYA dengan nama produknya saja dalam satu baris, tanpa kalimat, penjelasan, tanda kutip,
+        atau tanda baca di akhir. Jangan menebak merek yang tidak terlihat.
+        PROMPT;
+
     private string $apiKey;
     private string $visionModel;
     private string $embeddingModel;
@@ -63,6 +79,30 @@ class ImageEmbeddingService
 
     public function describeImage(string $absolutePath, string $mime): ?string
     {
+        return $this->askVision(self::DESCRIPTION_PROMPT, $absolutePath, $mime);
+    }
+
+    /**
+     * Nama produk singkat untuk permintaan barang baru (mis. "Kulkas Sharp 2 Pintu Silver"),
+     * terpisah dari describeImage() yang deskripsinya dipakai untuk embedding pencarian.
+     */
+    public function suggestProductName(string $absolutePath, string $mime): ?string
+    {
+        $name = $this->askVision(self::PRODUCT_NAME_PROMPT, $absolutePath, $mime);
+
+        if (!$name) {
+            return null;
+        }
+
+        // Ambil baris pertama saja dan buang tanda kutip/titik di ujung, jaga-jaga
+        // kalau model tetap menambahkan penjelasan.
+        $name = trim(strtok($name, "\n"), " \t\"'`.*-");
+
+        return $name !== '' ? mb_substr($name, 0, 50) : null;
+    }
+
+    private function askVision(string $prompt, string $absolutePath, string $mime): ?string
+    {
         try {
             $base64 = base64_encode(file_get_contents($absolutePath));
 
@@ -77,7 +117,7 @@ class ImageEmbeddingService
                             'content' => [
                                 [
                                     'type' => 'input_text',
-                                    'text' => self::DESCRIPTION_PROMPT,
+                                    'text' => $prompt,
                                 ],
                                 [
                                     'type' => 'input_image',

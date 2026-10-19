@@ -55,6 +55,7 @@ const props = defineProps({
     },
     filters: Object,
     image_keyword: String,
+    image_product_name: String,
     image_path: String,
     keranjang: Object,
 });
@@ -362,9 +363,11 @@ const barangBaruForm = useForm({
 const addBarangBaruToCart = () => {
     const urlParams = new URLSearchParams(window.location.search);
 
+    // Pakai nama produk singkat hasil AI (mis. "Kulkas Sharp Silver"), bukan
+    // image_keyword yang berisi deskripsi panjang untuk pencarian kemiripan.
     const namaBarang =
-        props.image_keyword ||
-        urlParams.get("image_keyword") ||
+        props.image_product_name ||
+        urlParams.get("image_product_name") ||
         params.value.search ||
         "Barang baru";
 

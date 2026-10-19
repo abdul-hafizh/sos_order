@@ -71,6 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/spk/{id}/kirim', [SpkController::class, 'updateKirim'])->name('spk.updateKirim');
     Route::put('/spk/{id}/terima', [SpkController::class, 'updateTerima'])->name('spk.updateTerima');
     Route::put('/spk/{id}/ketersediaan', [SpkController::class, 'updateKetersediaan'])->name('spk.updateKetersediaan');
+    Route::post('/spk/{id}/buat-barang', [SpkController::class, 'buatBarang'])->name('spk.buatBarang');
 
     Route::middleware('ho.user')->group(function () {
         Route::get('/admin-ho', [AdminHoController::class, 'index'])->name('admin-ho.index');

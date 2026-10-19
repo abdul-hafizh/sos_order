@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AdminSos;
 use App\Models\Spk;
 use App\Models\Barang;
+use App\Models\BarangVendor;
 use App\Models\MasterProduk;
 use App\Models\MasterProdukDetail;
 use App\Models\MasterProdukDetailGambar;
@@ -89,7 +90,23 @@ class SpkController extends Controller
         $user = $request->user();
 
         $spks = Spk::query()
-            ->with(['barang.produk.gambars', 'cabang', 'gambars'])
+            ->with([
+                // Data Master Produk & Master Produk Detail dimuat langsung (bukan
+                // salinan di t_spk) supaya detail SPK selalu menampilkan data terbaru.
+                'barang.produk.gambars',
+                'barang.produk.produk',
+                'barang.produk.category',
+                'barang.produk.tipe',
+                'barang.produk.satuan',
+                'barang.produk.berat',
+                'barang.produk.ukuran',
+                'barang.produk.warna',
+                'barang.produk.karakter',
+                'barang.produk.uom',
+                'barang.vendors' => fn ($query) => $query->where('active', 1)->with('vendor:kode_vendor,nama_vendor'),
+                'cabang',
+                'gambars',
+            ])
             ->when(! $user->is_ho_user, function ($query) use ($user) {
                 $query->where('kode_cabang', $user->kode_cabang);
             })
@@ -122,12 +139,44 @@ class SpkController extends Controller
         ]);
     }
 
+    /**
+     * Buat barang di Master Barang dari SPK "Permintaan barang baru" supaya
+     * admin bisa mengatur vendor (dan harga) sebelum menandai Tersedia.
+     */
+    public function buatBarang(Request $request, $id)
+    {
+        abort_unless($request->user()->is_ho_user, 403, 'Hanya admin yang bisa membuat barang dari SPK.');
+
+        $spk = Spk::with('gambars')->findOrFail($id);
+
+        if ($spk->kode_barang || $spk->id_barang || $spk->keterangan !== 'Permintaan barang baru') {
+            return back()->with('error', 'Barang untuk SPK ini sudah ada di Master Barang.');
+        }
+
+        // modified_by tidak diubah karena dipakai sebagai ID pemesan untuk
+        // notifikasi Telegram saat status ketersediaan diubah.
+        $barang = DB::transaction(function () use ($spk) {
+            $barang = $this->provisionBarangBaruFromSpk($spk);
+
+            $spk->kode_barang = $barang->kode_barang;
+            $spk->id_barang = $barang->id_barang;
+            $spk->harga_beli = $barang->harga_beli;
+            $spk->harga_jual = $barang->harga_jual;
+            $spk->save();
+
+            return $barang;
+        });
+
+        return back()->with('success', "Barang {$barang->kode_barang} dibuat. Atur vendor di Master Barang sebelum menandai Tersedia.");
+    }
+
     public function updateKetersediaan(Request $request, $id)
     {
         abort_unless($request->user()->is_ho_user, 403, 'Hanya admin yang bisa mengubah ketersediaan barang.');
 
         $validated = $request->validate([
             'is_available' => 'required|integer|in:0,1,2',
+            'kode_vendor' => 'nullable|string|exists:t_vendor,kode_vendor',
         ]);
 
         $spk = Spk::with('gambars')->findOrFail($id);
@@ -140,20 +189,29 @@ class SpkController extends Controller
         // dalam transaksi, supaya notifikasi Telegram dikirim ke pemesan asli.
         $pemesanId = $spk->modified_by;
 
-        $isBarangBaruBelumProvisi = !$spk->kode_barang
-            && !$spk->id_barang
-            && $spk->keterangan === 'Permintaan barang baru';
-
-        DB::transaction(function () use ($spk, $validated, $isBarangBaruBelumProvisi) {
-            if ($validated['is_available'] == 1 && $isBarangBaruBelumProvisi) {
-                $barang = $this->provisionBarangBaruFromSpk($spk);
-
-                $spk->kode_barang = $barang->kode_barang;
-                $spk->id_barang = $barang->id_barang;
-                $spk->harga_beli = $barang->harga_beli;
-                $spk->harga_jual = $barang->harga_jual;
+        // "Tersedia" hanya boleh kalau barang sudah ada di Master Barang dan
+        // admin memilih salah satu vendor aktif yang terdaftar di barang itu.
+        if ($validated['is_available'] == 1) {
+            if (!$spk->kode_barang) {
+                return back()->with('error', 'Barang belum ada di Master Barang. Klik "Buat Barang" lalu atur vendornya terlebih dahulu.');
             }
 
+            $vendorBarang = BarangVendor::where('kode_barang', $spk->kode_barang)
+                ->where('active', 1)
+                ->pluck('kode_vendor');
+
+            if ($vendorBarang->isEmpty()) {
+                return back()->with('error', "Barang {$spk->kode_barang} belum punya vendor aktif. Atur vendor di Master Barang terlebih dahulu.");
+            }
+
+            if (empty($validated['kode_vendor']) || !$vendorBarang->contains($validated['kode_vendor'])) {
+                return back()->with('error', 'Pilih vendor yang terdaftar di Master Barang untuk barang ini.');
+            }
+
+            $spk->kode_vendor = $validated['kode_vendor'];
+        }
+
+        DB::transaction(function () use ($spk, $validated) {
             $spk->is_available = $validated['is_available'];
             $spk->modified_by = auth()->id();
             $spk->modified_date = now();
