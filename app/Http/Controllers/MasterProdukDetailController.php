@@ -14,6 +14,7 @@ use App\Models\MasterTipe;
 use App\Models\MasterUkuran;
 use App\Models\MasterUom;
 use App\Models\MasterWarna;
+use App\Services\BarangSyncService;
 use App\Services\ImageEmbeddingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -150,7 +151,7 @@ class MasterProdukDetailController extends Controller
         }
     }
 
-    public function store(Request $request, ImageEmbeddingService $embeddingService)
+    public function store(Request $request, ImageEmbeddingService $embeddingService, BarangSyncService $syncService)
     {
         $validated = $request->validate([
             'id_produk' => 'required|integer|exists:master_produk,id_produk',
@@ -168,7 +169,7 @@ class MasterProdukDetailController extends Controller
             'foto.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        DB::transaction(function () use ($request, $validated, $embeddingService) {
+        DB::transaction(function () use ($request, $validated, $embeddingService, $syncService) {
             $produkDetail = MasterProdukDetail::create($validated);
 
             if ($request->hasFile('foto')) {
@@ -178,12 +179,15 @@ class MasterProdukDetailController extends Controller
                     );
                 }
             }
+
+            // Teruskan satuan/kategori ke t_barang, t_spk & m_item barang yang dihubungkan.
+            $syncService->syncFromProdukDetail($produkDetail);
         });
 
         return back()->with('success', 'Produk detail berhasil ditambahkan');
     }
 
-    public function update(Request $request, $id, ImageEmbeddingService $embeddingService)
+    public function update(Request $request, $id, ImageEmbeddingService $embeddingService, BarangSyncService $syncService)
     {
         $produkDetail = MasterProdukDetail::findOrFail($id);
 
@@ -211,8 +215,20 @@ class MasterProdukDetailController extends Controller
             'deleted_gambar_ids.*' => 'integer',
         ]);
 
-        DB::transaction(function () use ($request, $validated, $produkDetail, $embeddingService) {
+        DB::transaction(function () use ($request, $validated, $produkDetail, $embeddingService, $syncService) {
+            $kodeBarangLama = $produkDetail->kode_barang;
+
             $produkDetail->update(collect($validated)->except(['foto', 'deleted_gambar_ids'])->all());
+
+            // Kode barang diganti: SPK barang lama dipindah ke barang yang baru dipilih.
+            if ($kodeBarangLama && $produkDetail->kode_barang && $kodeBarangLama !== $produkDetail->kode_barang) {
+                $barangLama = Barang::where('kode_barang', $kodeBarangLama)->first();
+                $barangBaru = Barang::where('kode_barang', $produkDetail->kode_barang)->first();
+
+                if ($barangLama && $barangBaru) {
+                    $syncService->moveSpk($barangLama, $barangBaru);
+                }
+            }
 
             $deletedGambarIds = $validated['deleted_gambar_ids'] ?? [];
 
@@ -239,6 +255,9 @@ class MasterProdukDetailController extends Controller
             }
 
             $this->backfillMissingEmbeddings($produkDetail, $embeddingService);
+
+            // Teruskan satuan/kategori ke t_barang, t_spk & m_item barang terkait.
+            $syncService->syncFromProdukDetail($produkDetail);
         });
 
         return back()->with('success', 'Produk detail berhasil diupdate');

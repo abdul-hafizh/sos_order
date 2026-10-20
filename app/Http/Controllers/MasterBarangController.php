@@ -3,7 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Barang;
+use App\Models\BarangVendor;
+use App\Models\MasterProdukDetail;
+use App\Services\BarangSyncService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
 
@@ -80,7 +84,7 @@ class MasterBarangController extends Controller
         return back()->with('success', 'Barang berhasil ditambahkan');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $id, BarangSyncService $syncService)
     {
         $barang = Barang::findOrFail($id);
 
@@ -136,7 +140,26 @@ class MasterBarangController extends Controller
                 ->withInput();
         }
 
-        $barang->update($validated);
+        DB::transaction(function () use ($barang, $validated, $syncService) {
+            $kodeBarangLama = $barang->kode_barang;
+
+            $barang->update($validated);
+
+            // Kode barang diganti: ikutkan relasi yang menempel lewat kode_barang.
+            if ($kodeBarangLama !== $barang->kode_barang) {
+                MasterProdukDetail::where('kode_barang', $kodeBarangLama)->update(['kode_barang' => $barang->kode_barang]);
+                BarangVendor::where('kode_barang', $kodeBarangLama)->update(['kode_barang' => $barang->kode_barang]);
+            }
+
+            // Samakan harga, nama & kode di t_spk (+ t_spk_log), lalu m_item.
+            $produkDetail = MasterProdukDetail::where('kode_barang', $barang->kode_barang)->first();
+
+            $syncService->syncSpk($barang, $produkDetail);
+
+            if ($produkDetail) {
+                $syncService->syncMItemIfEligible($barang, $produkDetail);
+            }
+        });
 
         return back()->with('success', 'Barang berhasil diupdate');
     }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useForm, router, Link, Head } from "@inertiajs/vue3";
 import axios from "axios";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
@@ -18,6 +18,7 @@ import {
     Minus,
     ImagePlus,
     Loader2,
+    AlertTriangle,
 } from "lucide-vue-next";
 import {
     Table,
@@ -349,6 +350,19 @@ const requiredDetailFields = [
     ["id_uom", "UOM"],
 ];
 
+// Isian wajib tab "Barang Detail" yang masih kosong, untuk keterangan di atas form.
+const missingDetailLabels = computed(() => {
+    const missing = requiredDetailFields
+        .filter(([field]) => isEmptyValue(form.detail[field]))
+        .map(([, label]) => label);
+
+    if (detailPreviews.value.length === 0) {
+        missing.push("Foto Produk");
+    }
+
+    return missing;
+});
+
 const submit = () => {
     if (!editingBarang.value) return;
 
@@ -392,8 +406,17 @@ const submit = () => {
                     window.location.reload();
                 }, 1500);
             },
-            onError: () => {
+            onError: (errors) => {
                 isSubmitting.value = false;
+
+                // Error validasi dari server untuk tab Barang Detail tidak terlihat
+                // kalau admin sedang di tab Barang - pindahkan tab dan beri tahu.
+                const detailError = Object.entries(errors).find(([key]) => key.startsWith("detail"));
+
+                if (detailError) {
+                    activeTab.value = "detail";
+                    alert(`Barang Detail wajib dilengkapi: ${detailError[1]}`);
+                }
             },
         },
     );
@@ -839,7 +862,34 @@ const destroyVendor = () => {
                                     : 'border-transparent text-gray-400 hover:text-gray-600'
                             "
                         >
-                            Barang Detail
+                            Barang Detail <span class="text-red-500">*</span>
+                            <span
+                                v-if="missingDetailLabels.length"
+                                class="ml-1 inline-block w-2 h-2 rounded-full bg-red-500 align-middle"
+                                title="Barang Detail belum lengkap"
+                            />
+                        </button>
+                    </div>
+
+                    <div
+                        v-if="missingDetailLabels.length"
+                        class="mx-6 mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                    >
+                        <AlertTriangle class="w-5 h-5 shrink-0 mt-0.5" />
+                        <div class="flex-1">
+                            <p class="font-semibold">Detail barang wajib diisi</p>
+                            <p class="text-xs mt-0.5">
+                                Lengkapi di tab Barang Detail sebelum menyimpan:
+                                <b>{{ missingDetailLabels.join(", ") }}</b>.
+                            </p>
+                        </div>
+                        <button
+                            v-if="activeTab !== 'detail'"
+                            type="button"
+                            class="shrink-0 text-xs font-semibold underline"
+                            @click="activeTab = 'detail'"
+                        >
+                            Isi sekarang
                         </button>
                     </div>
 

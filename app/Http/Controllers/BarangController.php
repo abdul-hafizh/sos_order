@@ -8,7 +8,6 @@ use App\Models\BarangGambar;
 use App\Models\Keranjang;
 use App\Models\MasterBerat;
 use App\Models\MasterKarakter;
-use App\Models\MItem;
 use App\Models\MasterProduk;
 use App\Models\MasterProdukDetail;
 use App\Models\MasterSatuan;
@@ -18,8 +17,7 @@ use App\Models\MasterUom;
 use App\Models\MasterWarna;
 use App\Models\Category;
 use App\Models\MasterProdukDetailGambar;
-use App\Models\Ppn;
-use App\Models\Spk;
+use App\Services\BarangSyncService;
 use App\Services\ImageEmbeddingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -663,137 +661,7 @@ class BarangController extends Controller
         return $produkDetail;
     }
 
-    /**
-     * Kolom master_produk_detail yang wajib terisi sebelum boleh disinkron ke m_item.
-     */
-    private function missingProdukDetailFieldsForSync(MasterProdukDetail $produkDetail): array
-    {
-        $required = [
-            'kode_barang' => $produkDetail->kode_barang,
-            'category_id' => $produkDetail->category_id,
-            'id_tipe' => $produkDetail->id_tipe,
-            'id_satuan' => $produkDetail->id_satuan,
-            'id_uom' => $produkDetail->id_uom,
-        ];
-
-        return array_keys(array_filter($required, fn($value) => empty($value)));
-    }
-
-    /**
-     * Kolom harga t_barang yang wajib terisi (bukan kosong/0) sebelum boleh disinkron ke m_item.
-     */
-    private function missingHargaFieldsForSync(Barang $barang): array
-    {
-        $required = [
-            'harga_beli_before' => $barang->harga_beli_before,
-            'harga_beli' => $barang->harga_beli,
-            'harga_jual_before' => $barang->harga_jual_before,
-            'harga_jual' => $barang->harga_jual,
-            'harga_jual_jumbo' => $barang->harga_jual_jumbo,
-            'harga_jual_jumbo_before' => $barang->harga_jual_jumbo_before,
-        ];
-
-        return array_keys(array_filter($required, fn($value) => $value === null || (float) $value <= 0));
-    }
-
-    /**
-     * Sinkron otomatis ke m_item begitu semua kolom wajib (produk detail + harga) sudah
-     * terisi. Pakai updateOrCreate berdasarkan itemcode - insert kalau baris m_item-nya
-     * belum ada, atau resinkron ulang semua kolomnya tiap kali barang diupdate kalau
-     * sudah ada, supaya buyingprice/sellingprice ikut naik-turun sesuai t_spk & margin.
-     */
-    private function syncMItemIfEligible(Barang $barang, MasterProdukDetail $produkDetail): void
-    {
-        $missingDetail = $this->missingProdukDetailFieldsForSync($produkDetail);
-        $missingHarga = $this->missingHargaFieldsForSync($barang);
-
-        if (!empty($missingDetail) || !empty($missingHarga)) {
-            return;
-        }
-
-        $produkDetail->loadMissing(['category', 'uom']);
-
-        $spkRows = Spk::where('id_barang', $barang->id_barang)->get();
-        $totalSpkQty = $spkRows->sum(fn($spk) => (float) $spk->qty);
-        $endstock = $totalSpkQty * (float) $barang->qty_pos;
-
-        $latestSpk = $spkRows->sortByDesc('id_po')->first();
-        $buyingPrice = (float) ($latestSpk->harga_jual_include_ppn ?? 0);
-
-        $marginPercent = (float) ($produkDetail->category->margin ?? 0);
-        $sellingPrice = round($buyingPrice * (1 + $marginPercent / 100), 2);
-
-        MItem::updateOrCreate(['itemcode' => $barang->kode_barang], [
-            'itemcodeint' => $barang->kode_barang,
-            'itemcodeint1' => $barang->kode_barang,
-            'barcode1' => $barang->kode_barang,
-            'barcode2' => $barang->kode_barang,
-            'itemname' => $barang->nama_barang,
-            'itemname1' => $barang->nama_barang,
-            'categorycode' => $produkDetail->category_id,
-            'uom' => $produkDetail->uom->nama_uom ?? null,
-            'minstock' => $barang->min_stok,
-            'maxstock' => $barang->max_stok,
-            'endstock' => $endstock,
-            'buyingprice' => $buyingPrice,
-            'lastbuyingprice' => $barang->harga_beli_before,
-            'sellingprice' => $sellingPrice,
-            'sellingpricealt' => $sellingPrice,
-            'nonaktif' => $barang->active ? 0 : 1,
-            'canbesold' => $barang->active ? 1 : 0,
-        ]);
-    }
-
-    /**
-     * Update kolom PPN + nama_barang pada semua baris t_spk milik barang ini (dicocokkan
-     * lewat id_barang). id_ppn & ppn_persen diambil dari m_ppn yang sedang aktif -
-     * ppn_persen disimpan apa adanya (mis. 11.00, sama seperti m_ppn.persen_ppn).
-     * Pembagian per 100 hanya dipakai saat menghitung nilai_ppn dalam rupiah, bukan pada
-     * kolom ppn_persen itu sendiri. nama_barang ikut disinkron supaya SPK selalu
-     * menampilkan nama terbaru begitu diubah dari menu Barang.
-     */
-    private function syncSpkPpnFields(Barang $barang): void
-    {
-        $ppn = Ppn::where('active', 1)->orderByDesc('id_ppn')->first();
-
-        $idPpn = $ppn?->id_ppn;
-        $ppnPersen = $ppn ? (float) $ppn->persen_ppn : 0;
-
-        Spk::where('id_barang', $barang->id_barang)->get()->each(function (Spk $spk) use ($idPpn, $ppnPersen, $barang) {
-            $hargaJualDpp = (float) $spk->harga_jual;
-
-            // Baris SPK yang dibuat sebelum barang ini punya harga (harga_jual masih
-            // "0") jadi tidak punya dasar hitung PPN - pakai harga_jual t_barang yang
-            // sekarang sebagai fallback, sekaligus backfill kolom harga_jual di SPK-nya.
-            if ($hargaJualDpp <= 0) {
-                $hargaJualDpp = (float) $barang->harga_jual;
-            }
-
-            $nilaiPpn = ($ppnPersen / 100) * $hargaJualDpp;
-
-            // Sama seperti harga_jual: harga beli & satuan SPK yang masih kosong
-            // (mis. SPK barang baru yang di-provision dengan harga 0) di-backfill
-            // dari t_barang, tapi nilai yang sudah terisi tidak ditimpa.
-            $hargaBeli = (float) $spk->harga_beli > 0 ? $spk->harga_beli : $barang->harga_beli;
-            $satuan = $spk->satuan ?: Str::limit((string) $barang->satuan, 10, '');
-            $satuanPos = $spk->satuan_pos ?: Str::limit((string) ($barang->satuan_pos ?: $barang->satuan), 10, '');
-
-            $spk->update([
-                'nama_barang' => Str::limit($barang->nama_barang, 50, ''),
-                'harga_beli' => $hargaBeli,
-                'satuan' => $satuan ?: null,
-                'satuan_pos' => $satuanPos ?: null,
-                'harga_jual' => $hargaJualDpp,
-                'id_ppn' => $idPpn,
-                'ppn_persen' => $ppnPersen,
-                'harga_jual_dpp' => $hargaJualDpp,
-                'nilai_ppn' => $nilaiPpn,
-                'harga_jual_include_ppn' => $hargaJualDpp + $nilaiPpn,
-            ]);
-        });
-    }
-
-    public function update(Request $request, $id, ImageEmbeddingService $embeddingService)
+    public function update(Request $request, $id, ImageEmbeddingService $embeddingService, BarangSyncService $syncService)
     {
         $barang = Barang::with(['details.gambars', 'produk'])->findOrFail($id);
 
@@ -845,7 +713,7 @@ class BarangController extends Controller
             'detail.deleted_gambar_ids.*' => 'integer',
         ]);
 
-        DB::transaction(function () use ($request, $validated, $barang, $embeddingService) {
+        DB::transaction(function () use ($request, $validated, $barang, $embeddingService, $syncService) {
             $hargaBeli = $validated['harga_beli'] ?? 0;
             $hargaJual = $validated['harga_jual'] ?? 0;
             $hargaJualJumbo = $validated['harga_jual_jumbo'] ?? 0;
@@ -885,8 +753,8 @@ class BarangController extends Controller
 
             $produkDetail = $this->syncProdukDetail($request, $barang, $detailData, $embeddingService);
 
-            $this->syncSpkPpnFields($barang);
-            $this->syncMItemIfEligible($barang, $produkDetail);
+            $syncService->syncSpk($barang, $produkDetail);
+            $syncService->syncMItemIfEligible($barang, $produkDetail);
 
             $variants = $request->input('variants', []);
 

@@ -149,32 +149,45 @@ const updateKirim = (spk) => {
     });
 };
 
-const getSpkImages = (spk) => {
-    if (spk.gambars?.length) {
-        return spk.gambars
-            .filter((img) => img.gambar)
-            .map((img) => `/storage/${img.gambar}`);
-    }
+// URL gambar yang gagal dimuat (file sudah tidak ada di storage). Disaring supaya
+// otomatis jatuh ke gambar berikutnya, bukan menampilkan gambar rusak.
+const brokenImages = ref(new Set());
 
-    if (spk.gambar_permintaan) {
-        return [`/storage/${spk.gambar_permintaan}`];
-    }
-
-    const images = spk.barang?.produk?.gambars || [];
-
-    return images
-        .filter((img) => img.path_file)
-        .map((img) => `/storage/${img.path_file}`);
+const markBroken = (url) => {
+    brokenImages.value = new Set(brokenImages.value).add(url);
 };
+
+const usableImages = (urls) => [...new Set(urls)].filter((url) => !brokenImages.value.has(url));
 
 // Master Produk Detail milik barang SPK (relasi barang.produk), selalu data terbaru.
 const masterDetail = (spk) => spk.barang?.produk || null;
 
-const masterImages = (spk) => {
+const rawMasterImages = (spk) => {
     return (masterDetail(spk)?.gambars || [])
         .filter((img) => img.path_file)
         .map((img) => `/storage/${img.path_file}`);
 };
+
+// Foto sampel yang diunggah cabang saat memesan.
+const rawRequestImages = (spk) => {
+    const images = (spk.gambars || [])
+        .filter((img) => img.gambar)
+        .map((img) => `/storage/${img.gambar}`);
+
+    if (spk.gambar_permintaan) {
+        images.push(`/storage/${spk.gambar_permintaan}`);
+    }
+
+    return images;
+};
+
+const masterImages = (spk) => usableImages(rawMasterImages(spk));
+
+// Detail "Data Pesanan": foto permintaan dulu, lalu gambar master sebagai cadangan.
+const getSpkImages = (spk) => usableImages([...rawRequestImages(spk), ...rawMasterImages(spk)]);
+
+// Thumbnail kartu: gambar master dulu (sama seperti Dashboard), lalu foto permintaan.
+const thumbnailImages = (spk) => usableImages([...rawMasterImages(spk), ...rawRequestImages(spk)]);
 
 const masterFields = (spk) => {
     const detail = masterDetail(spk);
@@ -448,10 +461,11 @@ const submitTersedia = () => {
                         <div class="flex items-start justify-between gap-4 mb-4">
                             <div class="w-16 h-16 rounded-2xl overflow-hidden border bg-gray-50 flex items-center justify-center shrink-0 shadow-sm">
                                 <img
-                                    v-if="getSpkImages(spk).length"
-                                    :src="getSpkImages(spk)[0]"
+                                    v-if="thumbnailImages(spk).length"
+                                    :src="thumbnailImages(spk)[0]"
                                     class="w-full h-full object-cover"
                                     alt="Gambar Produk"
+                                    @error="markBroken(thumbnailImages(spk)[0])"
                                 />
                                 <Package v-else class="w-6 h-6 text-gray-400" />
                             </div>
@@ -647,6 +661,7 @@ const submitTersedia = () => {
                                 :src="getSpkImages(selectedSpk)[0]"
                                 class="w-full h-full object-cover"
                                 alt="Gambar Produk"
+                                @error="markBroken(getSpkImages(selectedSpk)[0])"
                             />
                             <Package v-else class="w-10 h-10 text-gray-300" />
                         </div>
@@ -656,10 +671,11 @@ const submitTersedia = () => {
                             class="grid grid-cols-4 gap-2"
                         >
                             <img
-                                v-for="(image, index) in getSpkImages(selectedSpk).slice(1, 5)"
-                                :key="index"
+                                v-for="image in getSpkImages(selectedSpk).slice(1, 5)"
+                                :key="image"
                                 :src="image"
                                 class="w-full aspect-square object-cover rounded-lg border"
+                                @error="markBroken(image)"
                             />
                         </div>
                     </div>
@@ -739,6 +755,7 @@ const submitTersedia = () => {
                                     :src="masterImages(selectedSpk)[0]"
                                     class="w-full h-full object-cover"
                                     alt="Gambar Master Produk"
+                                    @error="markBroken(masterImages(selectedSpk)[0])"
                                 />
                                 <Package v-else class="w-10 h-10 text-gray-300" />
                             </div>
@@ -748,10 +765,11 @@ const submitTersedia = () => {
                                 class="grid grid-cols-4 gap-2"
                             >
                                 <img
-                                    v-for="(image, index) in masterImages(selectedSpk).slice(1, 5)"
-                                    :key="index"
+                                    v-for="image in masterImages(selectedSpk).slice(1, 5)"
+                                    :key="image"
                                     :src="image"
                                     class="w-full aspect-square object-cover rounded-lg border"
+                                    @error="markBroken(image)"
                                 />
                             </div>
                         </div>

@@ -8,7 +8,7 @@ use App\Models\Keranjang;
 use App\Models\KeranjangDetail;
 use App\Models\Spk;
 use App\Models\SpkGambar;
-use App\Models\SpkLog;
+use App\Services\BarangSyncService;
 use App\Libraries\SendTelegram;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -269,34 +269,7 @@ class KeranjangController extends Controller
                     ]);
                 }
 
-                SpkLog::create($spk->only([
-                    'id_po',
-                    'period',
-                    'po_ke',
-                    'kode_cabang',
-                    'kode_barang',
-                    'nama_barang',
-                    'qty_last',
-                    'qty_cabang_terima',
-                    'qty',
-                    'harga_beli',
-                    'harga_jual',
-                    'satuan',
-                    'satuan_pos',
-                    'qty_pos',
-                    'kode_vendor',
-                    'kirim_langsung',
-                    'status_terima_barang',
-                    'tgl_terima_barang',
-                    'status_kirim_barang',
-                    'tgl_kirim_barang',
-                    'active',
-                    'status_validasi',
-                    'tgl_validasi',
-                    'keterangan',
-                    'modified_by',
-                    'modified_date',
-                ]));
+                app(BarangSyncService::class)->writeSpkLog($spk, 'i');
 
                 if ($item->tipe_item === 'barang_baru') {
                     $barangBaruItems->push([

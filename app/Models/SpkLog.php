@@ -38,5 +38,7 @@ class SpkLog extends Model
         'keterangan',
         'modified_by',
         'modified_date',
+        'a',
+        'b',
     ];
 }
